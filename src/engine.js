@@ -5,7 +5,7 @@
    Dados: arquivo do Lu (seed.json, nflverse até à véspera) + ESPN.
    Só vai à internet quando carregas em ↻. Tudo fica no telemóvel («lu_…»).
    ===================================================================== */
-const APP_VER = '1.0.0';
+const APP_VER = '1.1.0';
 
 /* ---------- utilitários ---------- */
 const $ = s => document.querySelector(s);
@@ -151,7 +151,7 @@ function ingest(ev) {
   const off = /POSTPON|CANCEL|SUSPEND/i.test(String(st.name || '') + ' ' + String(st.description || ''));
   const s = off ? 'off' : (st.completed || st.state === 'post') ? 'post' : st.state === 'in' ? 'in' : 'pre';
   const id = String(ev.id), old = DB.g[id];
-  const g = { id, d: ev.date || c.date, h, a, s, ty: Number(ty) || 2, wk: ev.week && ev.week.number ? (Number(ty) === 3 ? 18 + Number(ev.week.number) : Number(ev.week.number)) : (old && old.wk) || null, src: 'espn', neu: !!c.neutralSite };
+  const g = { id, d: ev.date || c.date, h, a, s, ty: Number(ty) || 2, wk: ev.week && ev.week.number ? (Number(ty) === 3 ? 18 + Math.min(4, Number(ev.week.number)) : Number(ev.week.number)) : (old && old.wk) || null, src: 'espn', neu: !!c.neutralSite };
   g.ed = etYmd(new Date(g.d));
   if (s === 'post' || s === 'in') { g.hs = scoreVal(H.score); g.as = scoreVal(A.score); g.per = Number(S.period) || 0; g.cl = st.shortDetail || st.detail || ''; g.ot = s === 'post' && (g.per > 4 || /OT/i.test(g.cl)); }
   const o = parseOdds(c.odds && c.odds[0], h, a);
@@ -164,13 +164,13 @@ let BUSY = false;
 async function refresh() {
   if (BUSY || !SEED) return; BUSY = true;
   const btn = $('#btnRefresh'); if (btn) btn.classList.add('spin'); document.body.classList.add('busy');
-  const T = todayET(), end = ymdAdd(T, 8);
+  const T = todayET(), end = ymdAdd(T, 12);
   const cut = SEED.cut.replace(/-/g, '');
   let fails = 0, got = 0;
   try {
-    // dia a dia desde o fim do arquivo até daqui a 8 dias (a semana NFL inteira: quinta, domingo e segunda)
-    let d = ymdAdd(cut, 1);
-    for (let i = 0; d <= end && i < 400; i++, d = ymdAdd(d, 1)) {
+    // dia a dia desde o fim do arquivo até daqui a 12 dias (a semana NFL inteira e a seguinte: quinta, domingo e segunda)
+    let d = ymdAdd(cut, 1); if (d < ymdAdd(T, -380)) d = ymdAdd(T, -380);
+    for (let i = 0; d <= end && i < 420; i++, d = ymdAdd(d, 1)) {
       if (DB.days[d] && d < ymdAdd(T, -2)) continue;
       setUpd(`⏳ A buscar ${d.slice(6)}/${d.slice(4, 6)} à ESPN…`);
       try { const j = await getJSON(`${ESPN}/scoreboard?dates=${d}`); if (!j || !Array.isArray(j.events)) throw new Error('resposta sem jogos'); j.events.forEach(e => { if (ingest(e)) got++; }); if (d < ymdAdd(T, -2)) DB.days[d] = 1; }
@@ -226,10 +226,10 @@ function buildModel() {
     LAST[g.h] = LAST[g.a] = g.ed;
   });
   // registos da época
-  const espnIds = new Set(Object.values(DB.g).filter(g => g.src === 'espn').map(g => g.id));
+  const espnIds = new Set(espnFin.map(g => g.id));
   const all = seedG.filter(g => g.s === 'post' && !espnIds.has(g.espn)).concat(espnFin.filter(g => seasonOf(g.ed) === season));
   const rec = {}; const R = t => rec[t] = rec[t] || { w: 0, l: 0, t: 0, hw: 0, hl: 0, aw: 0, al: 0, pf: 0, pa: 0, last: [] };
-  all.filter(g => seasonOf(g.ed) === season).sort((x, y) => x.d < y.d ? -1 : 1).forEach(g => {
+  all.filter(g => seasonOf(g.ed) === season && g.ty !== 3).sort((x, y) => x.d < y.d ? -1 : 1).forEach(g => {
     const H = R(g.h), A = R(g.a), d = g.hs - g.as;
     if (d > 0) { H.w++; H.hw++; A.l++; A.al++; } else if (d < 0) { A.w++; A.aw++; H.l++; H.hl++; } else { H.t++; A.t++; }
     H.pf += g.hs; H.pa += g.as; A.pf += g.as; A.pa += g.hs;
@@ -262,9 +262,14 @@ function expPts(P, O, D, mu, HF, LAST, g) {
 const PMF = new Map();
 function marginPmf(m) {
   const key = Math.round(m * 4) / 4; if (PMF.has(key)) return PMF.get(key);
-  const sd = SEED.par.sdm, W = SEED.W, p = new Float64Array(141); let s = 0;
-  for (let i = 0; i < 141; i++) { const k = i - 70; p[i] = Math.exp(-0.5 * ((k - key) / sd) ** 2) * (W[Math.abs(k)] || 1); s += p[i]; }
-  for (let i = 0; i < 141; i++) p[i] /= s;
+  const sd = SEED.par.sdm, W = SEED.W, p = new Float64Array(141);
+  let mm = key;
+  for (let it = 0; it < 4; it++) {   // os pesos puxam a média: corrige para que a média final seja mesmo m
+    let s = 0, mean = 0;
+    for (let i = 0; i < 141; i++) { const k = i - 70; p[i] = Math.exp(-0.5 * ((k - mm) / sd) ** 2) * (W[Math.abs(k)] || 1); s += p[i]; }
+    for (let i = 0; i < 141; i++) { p[i] /= s; mean += (i - 70) * p[i]; }
+    mm += key - mean;
+  }
   if (PMF.size > 4000) PMF.clear(); PMF.set(key, p); return p;
 }
 function Phi(x) { const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x / 2); return x >= 0 ? (1 + y) / 2 : (1 - y) / 2; }
@@ -299,7 +304,7 @@ function predict(g) {
     ['Descanso (folga / jogo à quinta)', E.rest]
   ];
   out.cands = candidates(g, out);
-  const elig = out.cands.filter(c => c.odd >= CFG.oddMin && c.odd <= CFG.oddMax).sort((x, y) => y.ev - x.ev);
+  const elig = out.cands.filter(c => c.src === 'Betano' && c.odd >= CFG.oddMin && c.odd <= CFG.oddMax).sort((x, y) => y.ev - x.ev);   // valor só contra a Betano
   out.best = elig[0] || null;
   out.value = out.best && out.best.ev >= CFG.evMin ? out.best : null;
   PC.set(g.id, { k: key, P: out });
@@ -381,7 +386,7 @@ function newBet(acc, g, c, stake, extra) {
   BETS.push(b); return b;
 }
 function outcome(b, g) {
-  if (g.s === 'off') return 'void';
+  if (g.s === 'off') return Date.now() - new Date(g.d).getTime() > 3 * 86400e3 ? 'void' : null;   // adiado: espera 3 dias pela nova data antes de anular
   if (g.s !== 'post' || g.hs == null) return null;
   const d = g.hs - g.as, wl = x => x > 1e-9 ? 'won' : x < -1e-9 ? 'lost' : 'push';
   if (b.mk === 'ml') return d === 0 ? 'push' : (b.sel === 'h' ? d > 0 : d < 0) ? 'won' : 'lost';

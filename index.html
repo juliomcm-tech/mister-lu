@@ -291,7 +291,7 @@ body.busy .top:after{content:"";position:absolute;left:0;right:0;bottom:0;height
    Dados: arquivo do Lu (seed.json, nflverse até à véspera) + ESPN.
    Só vai à internet quando carregas em ↻. Tudo fica no telemóvel («lu_…»).
    ===================================================================== */
-const APP_VER = '1.0.0';
+const APP_VER = '1.1.0';
 
 /* ---------- utilitários ---------- */
 const $ = s => document.querySelector(s);
@@ -437,7 +437,7 @@ function ingest(ev) {
   const off = /POSTPON|CANCEL|SUSPEND/i.test(String(st.name || '') + ' ' + String(st.description || ''));
   const s = off ? 'off' : (st.completed || st.state === 'post') ? 'post' : st.state === 'in' ? 'in' : 'pre';
   const id = String(ev.id), old = DB.g[id];
-  const g = { id, d: ev.date || c.date, h, a, s, ty: Number(ty) || 2, wk: ev.week && ev.week.number ? (Number(ty) === 3 ? 18 + Number(ev.week.number) : Number(ev.week.number)) : (old && old.wk) || null, src: 'espn', neu: !!c.neutralSite };
+  const g = { id, d: ev.date || c.date, h, a, s, ty: Number(ty) || 2, wk: ev.week && ev.week.number ? (Number(ty) === 3 ? 18 + Math.min(4, Number(ev.week.number)) : Number(ev.week.number)) : (old && old.wk) || null, src: 'espn', neu: !!c.neutralSite };
   g.ed = etYmd(new Date(g.d));
   if (s === 'post' || s === 'in') { g.hs = scoreVal(H.score); g.as = scoreVal(A.score); g.per = Number(S.period) || 0; g.cl = st.shortDetail || st.detail || ''; g.ot = s === 'post' && (g.per > 4 || /OT/i.test(g.cl)); }
   const o = parseOdds(c.odds && c.odds[0], h, a);
@@ -450,13 +450,13 @@ let BUSY = false;
 async function refresh() {
   if (BUSY || !SEED) return; BUSY = true;
   const btn = $('#btnRefresh'); if (btn) btn.classList.add('spin'); document.body.classList.add('busy');
-  const T = todayET(), end = ymdAdd(T, 8);
+  const T = todayET(), end = ymdAdd(T, 12);
   const cut = SEED.cut.replace(/-/g, '');
   let fails = 0, got = 0;
   try {
-    // dia a dia desde o fim do arquivo até daqui a 8 dias (a semana NFL inteira: quinta, domingo e segunda)
-    let d = ymdAdd(cut, 1);
-    for (let i = 0; d <= end && i < 400; i++, d = ymdAdd(d, 1)) {
+    // dia a dia desde o fim do arquivo até daqui a 12 dias (a semana NFL inteira e a seguinte: quinta, domingo e segunda)
+    let d = ymdAdd(cut, 1); if (d < ymdAdd(T, -380)) d = ymdAdd(T, -380);
+    for (let i = 0; d <= end && i < 420; i++, d = ymdAdd(d, 1)) {
       if (DB.days[d] && d < ymdAdd(T, -2)) continue;
       setUpd(`⏳ A buscar ${d.slice(6)}/${d.slice(4, 6)} à ESPN…`);
       try { const j = await getJSON(`${ESPN}/scoreboard?dates=${d}`); if (!j || !Array.isArray(j.events)) throw new Error('resposta sem jogos'); j.events.forEach(e => { if (ingest(e)) got++; }); if (d < ymdAdd(T, -2)) DB.days[d] = 1; }
@@ -512,10 +512,10 @@ function buildModel() {
     LAST[g.h] = LAST[g.a] = g.ed;
   });
   // registos da época
-  const espnIds = new Set(Object.values(DB.g).filter(g => g.src === 'espn').map(g => g.id));
+  const espnIds = new Set(espnFin.map(g => g.id));
   const all = seedG.filter(g => g.s === 'post' && !espnIds.has(g.espn)).concat(espnFin.filter(g => seasonOf(g.ed) === season));
   const rec = {}; const R = t => rec[t] = rec[t] || { w: 0, l: 0, t: 0, hw: 0, hl: 0, aw: 0, al: 0, pf: 0, pa: 0, last: [] };
-  all.filter(g => seasonOf(g.ed) === season).sort((x, y) => x.d < y.d ? -1 : 1).forEach(g => {
+  all.filter(g => seasonOf(g.ed) === season && g.ty !== 3).sort((x, y) => x.d < y.d ? -1 : 1).forEach(g => {
     const H = R(g.h), A = R(g.a), d = g.hs - g.as;
     if (d > 0) { H.w++; H.hw++; A.l++; A.al++; } else if (d < 0) { A.w++; A.aw++; H.l++; H.hl++; } else { H.t++; A.t++; }
     H.pf += g.hs; H.pa += g.as; A.pf += g.as; A.pa += g.hs;
@@ -548,9 +548,14 @@ function expPts(P, O, D, mu, HF, LAST, g) {
 const PMF = new Map();
 function marginPmf(m) {
   const key = Math.round(m * 4) / 4; if (PMF.has(key)) return PMF.get(key);
-  const sd = SEED.par.sdm, W = SEED.W, p = new Float64Array(141); let s = 0;
-  for (let i = 0; i < 141; i++) { const k = i - 70; p[i] = Math.exp(-0.5 * ((k - key) / sd) ** 2) * (W[Math.abs(k)] || 1); s += p[i]; }
-  for (let i = 0; i < 141; i++) p[i] /= s;
+  const sd = SEED.par.sdm, W = SEED.W, p = new Float64Array(141);
+  let mm = key;
+  for (let it = 0; it < 4; it++) {   // os pesos puxam a média: corrige para que a média final seja mesmo m
+    let s = 0, mean = 0;
+    for (let i = 0; i < 141; i++) { const k = i - 70; p[i] = Math.exp(-0.5 * ((k - mm) / sd) ** 2) * (W[Math.abs(k)] || 1); s += p[i]; }
+    for (let i = 0; i < 141; i++) { p[i] /= s; mean += (i - 70) * p[i]; }
+    mm += key - mean;
+  }
   if (PMF.size > 4000) PMF.clear(); PMF.set(key, p); return p;
 }
 function Phi(x) { const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x / 2); return x >= 0 ? (1 + y) / 2 : (1 - y) / 2; }
@@ -585,7 +590,7 @@ function predict(g) {
     ['Descanso (folga / jogo à quinta)', E.rest]
   ];
   out.cands = candidates(g, out);
-  const elig = out.cands.filter(c => c.odd >= CFG.oddMin && c.odd <= CFG.oddMax).sort((x, y) => y.ev - x.ev);
+  const elig = out.cands.filter(c => c.src === 'Betano' && c.odd >= CFG.oddMin && c.odd <= CFG.oddMax).sort((x, y) => y.ev - x.ev);   // valor só contra a Betano
   out.best = elig[0] || null;
   out.value = out.best && out.best.ev >= CFG.evMin ? out.best : null;
   PC.set(g.id, { k: key, P: out });
@@ -667,7 +672,7 @@ function newBet(acc, g, c, stake, extra) {
   BETS.push(b); return b;
 }
 function outcome(b, g) {
-  if (g.s === 'off') return 'void';
+  if (g.s === 'off') return Date.now() - new Date(g.d).getTime() > 3 * 86400e3 ? 'void' : null;   // adiado: espera 3 dias pela nova data antes de anular
   if (g.s !== 'post' || g.hs == null) return null;
   const d = g.hs - g.as, wl = x => x > 1e-9 ? 'won' : x < -1e-9 ? 'lost' : 'push';
   if (b.mk === 'ml') return d === 0 ? 'push' : (b.sel === 'h' ? d > 0 : d < 0) ? 'won' : 'lost';
@@ -796,11 +801,6 @@ function teamRt(t) {
    ===================================================================== */
 const ICP = {
   ball: '<ellipse cx="12" cy="12" rx="9.5" ry="5.5" transform="rotate(-35 12 12)"/><path d="M8.5 15.5l7-7M10 12l2 2M12 10l2 2M3.5 15.5l5 5M15.5 3.5l5 5"/>',
-  puck: '<ellipse cx="12" cy="9" rx="8" ry="3.2"/><path d="M4 9v5c0 1.8 3.6 3.2 8 3.2s8-1.4 8-3.2V9"/>',
-  stick: '<path d="M16 3l-7 14c-.6 1.2-1.6 2-3 2H3v-2.5h3.3L13.5 3M17 19h4"/>',
-  goal: '<path d="M3 19V7h18v12M3 7l3 4h12l3-4M6 11v8M18 11v8M10 11v8M14 11v8M6 15h12"/>',
-  snow: '<path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 2 3-2M9 20l3-2 3 2"/>',
-  mask: '<path d="M12 3c-4.5 0-7 3-7 7.5 0 5 2.5 9.5 7 10.5 4.5-1 7-5.5 7-10.5C19 6 16.5 3 12 3zM8 10.5h3M13 10.5h3M8 15h8M10 13v5M14 13v5"/>',
   vs: '<path d="M5 5l9 9M19 5l-9 9M12.5 15.5l3-3M8.5 12.5l3 3M15 15l4 4M9 15l-4 4M5 5h3M5 5v3M19 5h-3M19 5v3"/>',
   wallet: '<rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 10h18M16 15h2M6 6V4.5h11"/>',
   grid: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',
@@ -914,7 +914,8 @@ function render() {
   if (VIEW === 'jogos') ssSum();
 }
 function dayGames(off) { return weekGames(off).sort((x, y) => x.d < y.d ? -1 : 1); }
-const wkLbl = off => { const L = upcomingWeek(); return L ? (L.wk + off > 18 ? 'Playoffs ' + (L.wk + off - 18) : 'Semana ' + (L.wk + off)) : ''; };
+const ROUNDS = { 19: 'Wild Card', 20: 'Divisional', 21: 'Finais de conferência', 22: 'Super Bowl' };
+const wkLbl = off => { const L = upcomingWeek(); if (!L) return ''; const w = L.wk + off; return ROUNDS[w] || (w > 22 ? '' : 'Semana ' + w); };
 const nmLg = t => { const n = tName(t), w = Math.max(...n.split(/\s+/).map(x => x.length)); return w >= 11 ? ' xl' : w >= 8 ? ' lg' : ''; };
 const f1 = v => Math.abs(v).toFixed(1).replace('.', ',');
 const okIc = ok => ok == null ? '<span class="muted">—</span>' : ok ? `<span class="pos">${ic('check')}</span>` : `<span class="neg">${ic('x')}</span>`;
@@ -986,9 +987,9 @@ function dateStrip() {
   const L = upcomingWeek(); if (!L) return '';
   let h = '<div class="dates">';
   for (let i = -3; i <= 2; i++) {
-    const w = L.wk + i; if (w < 1) continue;
+    const w = L.wk + i; if (w < 1 || w > 22) continue;
     const G = dayGames(i), rng = G.length ? (() => { const a = new Date(G[0].d), b = new Date(G[G.length - 1].d), f = x => x.getDate(); const mo = x => x.toLocaleDateString('pt-PT', { month: 'short' }).replace('.', ''); return f(a) === f(b) ? f(a) + ' ' + mo(b) : a.getMonth() === b.getMonth() ? f(a) + '–' + f(b) + ' ' + mo(b) : f(a) + ' ' + mo(a) + '–' + f(b) + ' ' + mo(b); })() : '—';
-    h += `<button class="${DAY === i ? 'on' : ''}" onclick="DAY=${i};render()"><b>${w > 18 ? 'P' + (w - 18) : w}</b><small>${esc(rng)}</small></button>`;
+    h += `<button class="${DAY === i ? 'on' : ''}" onclick="DAY=${i};render()"><b>${w > 18 ? ['WC', 'DIV', 'CONF', 'SB'][w - 19] || '' : w}</b><small>${esc(rng)}</small></button>`;
   }
   return h + '</div>';
 }
@@ -1047,7 +1048,7 @@ function boletimPanel(C, auto, picks) {
   } else {
     h += picks.length ? picks.map(({ g, P }) => { const v = P.value, i = P.cands.indexOf(v); return `<div class="pick"><div style="min-width:0"><div class="g">${dayLbl(g.d)} ${hhmm(g.d)} · ${esc(g.h)} – ${esc(g.a)} · ${esc(mkName(v.mk))} · ${esc(v.src)}</div><div class="l">${esc(selLabel(g, v.mk, v.sel, v.line))}</div><div class="g">Lu ${pct(v.p)} · odd justa ${odd2(v.fair)}</div></div>
       <div class="o">${odd2(v.odd)}<small>valor ${sPct(v.ev)}</small></div><button class="btn go sm" onclick="openBet('${g.id}',${i})">Apostar</button></div>`; }).join('') + `<div class="small muted" style="margin-top:8px">«Valor» = a odd paga mais do que o Lu acha justo. Não é certeza: é vantagem a longo prazo.</div>`
-      : `<div class="small" style="margin-top:10px">Sem valor nas odds da ESPN — normal: em 5 épocas de teste às cegas, a linha de fecho da NFL não se deixou bater.</div><div class="small muted" style="margin-top:6px"><b>Onde pode haver valor:</b> nas <b>linhas alternativas da Betano</b> (handicaps e totais diferentes do principal), onde o preço dos números 3 e 7 às vezes não bate certo. Abre um jogo → <b>Odds</b> → mete as da Betano.</div>`;
+      : `<div class="small" style="margin-top:10px">O Lu só procura valor nas odds da <b>Betano</b> que tu metes: a linha da ESPN já é o centro das contas dele, por isso «valor» contra ela seria ilusão (no teste às cegas, a linha de fecho não se deixou bater).</div><div class="small muted" style="margin-top:6px"><b>Onde pode haver valor:</b> nas <b>linhas alternativas da Betano</b> (handicaps e totais diferentes do principal), onde o preço dos números 3 e 7 às vezes não bate certo. Abre um jogo → <b>Odds</b> → mete as da Betano.</div>`;
   }
   return h + '</div>';
 }
@@ -1075,12 +1076,13 @@ function placeSlip() {
   newMulti('tu', L.map(x => safeLeg(x.c, x.odd)), stake, { duel, src: 'seguro', p: r2(P) });
   let mine = SS.C.filter(c => SS.auto.has(legKey(c)));
   let same = mine.length === L.length && L.every(x => SS.auto.has(legKey(x.c)));
-  if (!mine.every(c => SS.odd[legKey(c)] > 1)) { mine = L.map(x => x.c); same = true; }   // sem odds reais nas dele, vai no teu
+  let follow = false;
+  if (!mine.every(c => SS.odd[legKey(c)] > 1 && canBet(c.g))) { mine = L.map(x => x.c); same = true; follow = true; }   // sem odds reais nas dele, vai no teu
   const tstake = Math.min(stake, accStats('lu').bal);
   let msg, mood = 'win';
   if (mine.length && tstake >= CFG.min) {
     newMulti('lu', mine.map(c => safeLeg(c, SS.odd[legKey(c)])), tstake, { duel, src: 'seguro', p: r2(mine.reduce((a, c) => a * c.p, 1)) });
-    msg = same ? 'É o meu boletim. Vou contigo!' : `Mexeste no boletim. Eu fico com o meu: <b>${mine.map(c => esc(c.lb)).join(' + ')}</b>.`;
+    msg = follow ? 'Só tenho odds reais nas tuas seleções: vou contigo no teu boletim.' : same ? 'É o meu boletim. Vou contigo!' : `Mexeste no boletim. Eu fico com o meu: <b>${mine.map(c => esc(c.lb)).join(' + ')}</b>.`;
   } else { BETS.push({ id: 'gp' + Date.now().toString(36), acc: 'lu', g: L[0].c.g.id, gl: '', gd: L[0].c.g.d, mk: 'pass', stake: 0, odd: 0, t: Date.now(), st: 'pass', ret: 0, lb: 'Passou', duel }); msg = 'Estou sem saldo… passo esta.'; mood = 'sad'; }
   saveBets();
   openSheet('Duelo marcado', duelBox(duel, mood, msg), true);
@@ -1165,7 +1167,7 @@ function openGame(id) {
 }
 function tabAnalise(g, P) {
   const s1 = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1).replace('.', ',');
-  const favH = P.m >= 0, F = favH ? g.h : g.a, side = favH ? 'h' : 'a';
+  const favH = P.pML >= 0.5, F = favH ? g.h : g.a, side = favH ? 'h' : 'a';
   const mpp = []; for (let i = 0; i < 141; i++) mpp.push([i - 70, P.pm[i]]);
   const top = mpp.filter(([k]) => favH ? k > 0 : k < 0).sort((x, y) => y[1] - x[1]).slice(0, 4);
   let h = catH('chart', 'Previsão', 'var(--c-blue)') +
@@ -1291,7 +1293,7 @@ function placeBet() {
   const q = probs(P, c.mk, c.sel, c.line), p = q.w, mineEv = evOf(q, c.odd);
   const duel = 'd' + Date.now().toString(36);
   newBet('tu', g, c, BF.stake, { p: r2(p), ev: r2(mineEv), duel });
-  const opts = P.cands.filter(x => x.odd >= CFG.oddMin && x.odd <= CFG.oddMax && x.ev > 0).sort((a, b) => b.ev - a.ev);
+  const opts = P.cands.filter(x => x.src === 'Betano' && x.odd >= CFG.oddMin && x.odd <= CFG.oddMax && x.ev > 0).sort((a, b) => b.ev - a.ev);
   let tc = opts[0] || null;
   if (mineEv > 0 && (!tc || mineEv > tc.ev)) tc = Object.assign({}, c, { p, ev: mineEv });
   let msg, mood;
@@ -1319,7 +1321,7 @@ function voidBet(id) {
   const b = BETS.find(x => x.id === id); if (!b || b.st !== 'open') return;
   const gs = b.legs ? b.legs.map(l => DB.g[l.g]) : [DB.g[b.g]];
   if (gs.some(g => !canBet(g))) { closeSheet(); return toast('O jogo já começou: já não dá para anular'); }
-  BETS.filter(x => x.duel && x.duel === b.duel && (x.st === 'open' || x.st === 'pass')).concat([b]).forEach(x => { if (x.st === 'pass') x.st = 'void'; else { x.st = 'void'; x.ret = x.stake; } x.tset = Date.now(); });
+  BETS.filter(x => x.duel && x.duel === b.duel && (x.st === 'open' || x.st === 'pass')).filter(x => x !== b).concat([b]).forEach(x => { if (x.st === 'pass') x.st = 'void'; else { x.st = 'void'; x.ret = x.stake; } x.tset = Date.now(); });
   saveBets(); closeSheet(); toast('Aposta anulada (o dinheiro voltou)'); render();
 }
 
@@ -1500,7 +1502,7 @@ function openHow() {
   const M = getModel(), P = SEED.par;
   openSheet('Como pensa o Lu', `<div class="pn" style="line-height:1.55">
    ${catH('chart', '1. Ataque e defesa', 'var(--c-blue)')}<p>Depois de cada jogo, o ataque e a defesa de cada equipa mexem ${Math.round(P.k * 100)}% do erro (pontos marcados e sofridos acima ou abaixo do esperado contra aquele adversário). Goleadas só contam até ${P.cap} pontos. De uma época para a outra fica ${pct(P.carry)} da força.</p>
-   ${catH('home', '2. Casa', 'var(--c-orange)')}<p>A vantagem de jogar em casa aprende-se sozinha. Valia ~3 pontos há 10 anos; agora vale <b>${f1(M.HF)} pts</b>.</p>
+   ${catH('home', '2. Casa', 'var(--c-orange)')}<p>A vantagem de jogar em casa aprende-se sozinha. Valia ~3 pontos há 10 anos; agora vale <b>${M.HF < 0 ? '−' : ''}${f1(M.HF)} pts</b>.</p>
    ${catH('clock', '3. Descanso', 'var(--c-red)')}<p>Vir de uma semana de folga vale +${f1(P.bye)} pt; jogar à quinta depois de domingo −${f1(P.short)}.</p>
    ${catH('target', '4. Números-chave', 'var(--c-green)')}<p>A margem final não é uma curva lisa: 3 e 7 aparecem muito mais (os pesos foram medidos em 17 épocas reais), o empate quase nunca. É isto que permite pôr preço certo em −2,5 vs −3,5 ou −6,5 vs −7,5.</p>
    ${catH('coins', '5. Mercado', 'var(--c-yellow)')}<p>Junta a linha da casa (ESPN) com peso alto e vai aprendendo quanto confiar nela: peso atual <b>${pct(calibW().w)}</b> (${calibW().n} jogos medidos).</p>
@@ -1512,7 +1514,7 @@ function openCfg() {
   openSheet('Definições', `<div class="row">${['tu', 'lu', 'pi'].map(k => `<div style="flex:1">${inp('c_' + k, 'Banca ' + ACC[k].n.replace('Mister ', ''), CFG.bank[k])}</div>`).join('')}</div>
    ${inp('c_min', 'Aposta mínima da tua casa (€)', CFG.min)}
    ${inp('c_pis', 'Valor de cada aposta do piloto (€)', CFG.piStake)}
-   ${inp('c_ev', 'Valor mínimo para o Boletim (%)', Math.round(CFG.evMin * 100), 'Mais alto = menos apostas, mais exigentes.')}
+   ${inp('c_ev', 'Valor mínimo para uma «Aposta do Lu» (%)', Math.round(CFG.evMin * 100), 'Mais alto = menos apostas, mais exigentes.')}
    ${inp('c_w', 'Peso inicial da linha da casa (%)', Math.round(CFG.mktW * 100), 'Ponto de partida: o Lu ajusta-o sozinho com os resultados. No teste às cegas, 90% foi o melhor.')}
    <label class="f">Piloto automático</label><div class="seg"><button id="c_pon" class="${CFG.piOn ? 'on' : ''}" onclick="this.classList.add('on');$('#c_poff').classList.remove('on')">Ligado</button><button id="c_poff" class="${!CFG.piOn ? 'on' : ''}" onclick="this.classList.add('on');$('#c_pon').classList.remove('on')">Desligado</button></div>
    <button class="btn fill full" style="margin-top:14px" onclick="saveCfg()">Guardar</button>
