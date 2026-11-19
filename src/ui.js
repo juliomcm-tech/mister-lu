@@ -542,18 +542,20 @@ function stTag(b) {
 function betRow(b) {
   const legs = b.legs ? `<div class="legs">${b.legs.map(l => `${l.r === 'won' ? '<span class="pos">✓</span>' : l.r === 'lost' ? '<span class="neg">✗</span>' : '•'} ${esc(l.lb)} @ ${odd2(l.odd)} <span class="muted">(${esc((DB.g[l.g] || {}).h)}–${esc((DB.g[l.g] || {}).a)}${l.res ? ' ' + esc(l.res) : ''})</span>`).join('<br>')}</div>` : '';
   return `<div class="bet"><div class="who" style="--k:${ACC[b.acc].c}">${ic(ACC[b.acc].ic)}</div><div class="m"><div class="t">${esc(b.lb)} <span class="muted" style="font-weight:400">@ ${odd2(b.odd)}</span></div>
-   <div class="g">${b.legs ? 'Boletim' : esc(b.gl)} · ${dayLbl(b.gd)} ${hhmm(b.gd)}${b.res ? ' · ' + esc(b.res) : ''}${b.ev != null ? ` · valor Lu ${sPct(b.ev)}` : b.p != null && b.legs ? ` · Lu ${pct(b.p)}` : ''}</div>${legs}
+   <div class="g">${b.legs ? 'Boletim' : esc(b.gl)} · ${dayLbl(b.gd)} ${hhmm(b.gd)}${b.res ? ' · ' + esc(b.res) : ''}${b.auto ? ` · discorda ${f1(b.edge || 0)} pts da casa${b.oe ? ' · odd típica' : ''}${b.cl != null && b.cl !== b.line && b.st !== 'open' ? ` · fecho ${b.cl > 0 ? '+' : b.cl < 0 ? '−' : ''}${f1(b.cl)}` : ''}` : b.ev != null ? ` · valor Lu ${sPct(b.ev)}` : b.p != null && b.legs ? ` · Lu ${pct(b.p)}` : ''}</div>${legs}
    <div style="margin-top:4px">${stTag(b)}${b.acc === 'tu' && b.st === 'open' ? ` <button class="btn sm" style="min-height:26px;padding:2px 10px" onclick="askConfirm('Anular esta aposta? (se não chegaste a jogá-la na Betano). O duelo do Lu também é anulado.','Anular',&quot;voidBet('${b.id}')&quot;)">anular</button>` : ''}</div></div>
    <div class="v">${eur(b.stake)}<small>${b.st === 'open' ? 'ganho possível ' + eur(b.stake * b.odd) : ''}</small></div></div>`;
 }
 function viewContas() {
   const tile = k => { const s = accStats(k); return `<div class="acct ${ACCF === k ? 'on' : ''}" style="--k:${ACC[k].c}" onclick="ACCF=ACCF==='${k}'?'all':'${k}';render()">${ic(ACC[k].ic)}<div class="n">${ACC[k].n}</div><div class="v">${eur(s.bal)}</div><div class="d"><span class="${s.profit > 0 ? 'pos' : s.profit < 0 ? 'neg' : ''}">${sEur(s.profit)}</span></div></div>`; };
   let h = `<div class="accs">${tile('tu')}${tile('lu')}${tile('pi')}</div>`;
+  if (ACCF === 'all') h += botMini();
   if (ACCF !== 'all') {
     const s = accStats(ACCF), n = s.w + s.l;
     h += `<div class="pn hl">${pnH(`${ic(ACC[ACCF].ic)} ${ACC[ACCF].n}`, 'toca outra vez para ver todas')}
       <div class="mosaic"><div><b>${eur(s.bal).replace(' €', '')}</b><small>saldo (€)</small></div><div><b>${n ? pct(s.w / n) : '—'}</b><small>acerto ${s.w}/${n}</small></div><div><b class="${s.roi >= 0 ? 'pos' : 'neg'}">${sPct(s.roi)}</b><small>ROI</small></div></div>
       <div class="small muted">Começou com ${eur(s.start)} · em jogo ${eur(s.open)}</div></div>`;
+    if (ACCF === 'pi') h += botPanel();
   }
   h += `<div class="row w" style="margin-top:8px"><button class="btn sm" onclick="exportCSV()">${ic('download')} Exportar</button><button class="btn sm" onclick="printBets()">${ic('print')} Imprimir</button><button class="btn sm" onclick="openDeposit()">${ic('coins')} Recarregar</button></div>`;
   const accOrd = { tu: 0, lu: 1, pi: 2 }, L = BETS.filter(b => b.st !== 'pass' && (ACCF === 'all' || b.acc === ACCF)).sort((a, b) => (b.st === 'open' && a.st === 'open' ? accOrd[a.acc] - accOrd[b.acc] : 0) || b.t - a.t);
@@ -565,7 +567,7 @@ function viewContas() {
   return h;
 }
 function openDeposit() {
-  openSheet('Recarregar banca', `<label class="f">Conta</label><select class="in" id="dAcc"><option value="tu">Tu</option><option value="lu">Mister Lu</option><option value="pi">Piloto</option></select>
+  openSheet('Recarregar banca', `<label class="f">Conta</label><select class="in" id="dAcc"><option value="tu">Tu</option><option value="lu">Mister Lu</option><option value="pi">Lu sozinho</option></select>
    <label class="f">Valor a juntar (€)</label><input class="in" id="dVal" inputmode="decimal" value="50">
    <div class="small muted" style="margin-top:6px">Fica registado à parte: o lucro e o ROI continuam certos.</div>
    <button class="btn fill full" style="margin-top:12px" onclick="doDeposit()">Juntar</button>`, true);
@@ -678,16 +680,38 @@ function openHow() {
    ${catH('target', '4. Números-chave', 'var(--c-green)')}<p>A margem final não é uma curva lisa: 3 e 7 aparecem muito mais (os pesos foram medidos em 17 épocas reais), o empate quase nunca. É isto que permite pôr preço certo em −2,5 vs −3,5 ou −6,5 vs −7,5.</p>
    ${catH('coins', '5. Mercado', 'var(--c-yellow)')}<p>Junta a linha da casa (ESPN) com peso alto e vai aprendendo quanto confiar nela: peso atual <b>${pct(calibW().w)}</b> (${calibW().n} jogos medidos).</p>
    ${catH('chip', '6. O que dizem os testes às cegas', 'var(--c-purple)')}<p>Afinado em 2009-18, escolhido com 2019-21 e testado sem ver o futuro em 2022-26 (1.285 jogos). O Lu sozinho acerta <b>65%</b> dos vencedores; a linha de fecho das casas 68%, e contra ela o handicap ficou ~50%. <b>Honestidade:</b> a linha principal da NFL é das mais eficientes do mundo. O valor possível está nas linhas alternativas e nas odds da Betano que fujam do justo.</p>
-   <p class="small muted">Contas: <b>Tu</b> apostas e o Lu dá opinião; <b>Mister Lu</b> responde a cada aposta tua (duelo); <b>Piloto</b> aposta ${eur(CFG.piStake)} em cada «valor» com odds reais.</p></div>`);
+   <p class="small muted">Contas: <b>Tu</b> apostas e o Lu dá opinião; <b>Mister Lu</b> responde a cada aposta tua (duelo); <b>Lu sozinho</b> é um bot: aposta ${eur(CFG.piStake)} em cada jogo no lado do handicap que a cabeça dele prefere, sem ninguém lhe mexer.</p></div>`);
+}
+function botMini() {
+  const S = botStats();
+  return `<div class="pn" style="margin-top:10px;cursor:pointer" onclick="ACCF='pi';render()"><div class="opinion" style="margin:0"><div class="face">${luFace(S.roi == null ? 'ok' : S.roi >= 0 ? 'win' : 'sad')}</div><div><b>Lu sozinho</b> · ${CFG.piOn ? 'ligado' : '<span class="neg">desligado</span>'}<div class="small muted">${S.n ? `${S.n} apostas sozinho · ${S.w}-${S.l}${S.p ? '-' + S.p : ''} · ${S.open} em jogo${S.roi != null ? ' · ROI ' + sPct(S.roi) : ''}` : 'Aposta sozinho em todos os jogos da semana quando atualizas. Toca para ver.'}</div></div></div></div>`;
+}
+function botPanel() {
+  const S = botStats(), need = 0.524, nf = S.w + S.l;
+  const row = (lbl, v, ref, txt) => `<div class="why"><span>${lbl}</span><b class="${v == null || (ref === 0.0001 && Math.abs(v) < 0.05) ? 'muted' : v >= ref ? 'pos' : 'neg'}">${txt}</b></div>`;
+  const verdict = nf < 50 ? `Ainda é cedo: com ${nf} apostas fechadas manda a sorte. Começa a ler a partir de ~100; com confiança, a partir de ~300 (uma época inteira dá ~280).`
+    : S.clv != null && S.clv > 0.3 && S.hit >= need ? 'Está a bater a linha e a apanhar linhas melhores do que as do fecho: sinal raro e bom. Continua a observar antes de acreditar.'
+    : S.hit < 0.5 ? 'Como no teste às cegas: sozinho contra a linha da casa, perde. É por isso que a app mistura 90% casa + 10% Lu.'
+    : 'Perto do esperado: anda à volta dos 50%, e a margem da casa (precisas de 52,4%) come o resto.';
+  return `<div class="pn" style="margin-top:10px">${pnH(`${ic('robot')} Como se porta sozinho`, CFG.piOn ? 'ligado' : 'desligado')}
+    <div class="opinion"><div class="face">${luFace('ok')}</div><div class="small">Em cada jogo da semana aposto <b>${eur(CFG.piStake)}</b> no lado do handicap que a <b>minha cabeça</b> acha melhor (sem copiar a casa), à linha e odd da ESPN do momento. Ninguém me mexe: é a experiência honesta.</div></div>
+    ${row('Acerto no handicap', S.hit, need, S.hit == null ? '—' : `${pct(S.hit)} (${S.w}-${S.l}${S.p ? '-' + S.p : ''})`)}
+    ${row('Lucro por aposta (ROI)', S.roi, 0, S.roi == null ? '—' : `${sPct(S.roi)} · ${sEur(S.pl)}`)}
+    ${row('Quando discorda 3+ pts', S.bigHit, need, S.bigHit == null ? '—' : `${pct(S.bigHit)} em ${S.bigN}`)}
+    ${row('Linha a favor até ao jogo (CLV)', S.clv, 0.0001, S.clv == null ? '—' : `${S.clv >= 0 ? '+' : '−'}${f1(S.clv)} pts · ${pct(S.clvPos)} a favor, ${S.clvNeg} contra`)}
+    <div class="small muted" style="margin-top:8px">Para ganhar a odds 1,91 é preciso acertar <b>52,4%</b>. No teste às cegas 2022-26 (${BOT_TEST.n} jogos) esta regra acertou <b>${pct(BOT_TEST.acerto)}</b> e deu <b>${sPct(BOT_TEST.roi)}</b> por aposta.</div>
+    <div class="small" style="margin-top:8px">${verdict}</div>
+    <div class="small muted" style="margin-top:8px">CLV: compara a linha a que apostei com a última que a app viu antes do jogo. Se as casas mexem a linha para o meu lado, vi algo antes delas. Para ficar certo, atualiza também perto dos jogos (domingo antes das 18h). Eu só aposto quando atualizas: abre a app pelo menos uma vez por semana antes de quinta à noite.</div>
+    ${!CFG.piOn ? `<button class="btn fill full" style="margin-top:12px" onclick="CFG.piOn=true;LS.set('cfg',CFG);pilotRun();render()">Ligar o Lu sozinho</button>` : ''}</div>`;
 }
 function openCfg() {
   const inp = (id, lbl, v, hint) => `<label class="f">${lbl}</label><input class="in" id="${id}" inputmode="decimal" value="${String(v).replace('.', ',')}">${hint ? `<div class="small muted">${hint}</div>` : ''}`;
   openSheet('Definições', `<div class="row">${['tu', 'lu', 'pi'].map(k => `<div style="flex:1">${inp('c_' + k, 'Banca ' + ACC[k].n.replace('Mister ', ''), CFG.bank[k])}</div>`).join('')}</div>
    ${inp('c_min', 'Aposta mínima da tua casa (€)', CFG.min)}
-   ${inp('c_pis', 'Valor de cada aposta do piloto (€)', CFG.piStake)}
+   ${inp('c_pis', 'Valor de cada aposta do Lu sozinho (€)', CFG.piStake)}
    ${inp('c_ev', 'Valor mínimo para uma «Aposta do Lu» (%)', Math.round(CFG.evMin * 100), 'Mais alto = menos apostas, mais exigentes.')}
    ${inp('c_w', 'Peso inicial da linha da casa (%)', Math.round(CFG.mktW * 100), 'Ponto de partida: o Lu ajusta-o sozinho com os resultados. No teste às cegas, 90% foi o melhor.')}
-   <label class="f">Piloto automático</label><div class="seg"><button id="c_pon" class="${CFG.piOn ? 'on' : ''}" onclick="this.classList.add('on');$('#c_poff').classList.remove('on')">Ligado</button><button id="c_poff" class="${!CFG.piOn ? 'on' : ''}" onclick="this.classList.add('on');$('#c_pon').classList.remove('on')">Desligado</button></div>
+   <label class="f">Lu sozinho (bot automático)</label><div class="seg"><button id="c_pon" class="${CFG.piOn ? 'on' : ''}" onclick="this.classList.add('on');$('#c_poff').classList.remove('on')">Ligado</button><button id="c_poff" class="${!CFG.piOn ? 'on' : ''}" onclick="this.classList.add('on');$('#c_pon').classList.remove('on')">Desligado</button></div>
    <button class="btn fill full" style="margin-top:14px" onclick="saveCfg()">Guardar</button>
    <button class="btn go full" style="margin-top:10px" onclick="openNet()">${ic('pulse')} Testar ligação à ESPN</button>
    <button class="btn red full" style="margin-top:10px" onclick="askConfirm('Apagar TODAS as apostas e recomeçar as três contas? Os jogos guardados ficam.','Apagar apostas','wipeBets()')">Recomeçar as contas</button>`);

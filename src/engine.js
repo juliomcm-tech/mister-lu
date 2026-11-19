@@ -5,7 +5,7 @@
    Dados: arquivo do Lu (seed.json, nflverse até à véspera) + ESPN.
    Só vai à internet quando carregas em ↻. Tudo fica no telemóvel («lu_…»).
    ===================================================================== */
-const APP_VER = '1.1.0';
+const APP_VER = '1.2.0';
 
 /* ---------- utilitários ---------- */
 const $ = s => document.querySelector(s);
@@ -69,9 +69,10 @@ const arrOr = v => Array.isArray(v) ? v : [], objOr = v => v && typeof v === 'ob
 let DB = LS.get('db', null); if (!DB || !DB.g || !DB.days) DB = { g: {}, days: {} };
 let BETS = arrOr(LS.get('bets', [])), PREDS = objOr(LS.get('preds', {})), DEPOS = arrOr(LS.get('depos', [])), SLIPS = objOr(LS.get('slips', {}));
 let BO = objOr(LS.get('bo', {}));                // odds da Betano que tu metes (por jogo)
-const CFG_DEF = { bank: { tu: 100, lu: 100, pi: 250 }, min: 0.25, piOn: false, piStake: 2.5, evMin: 0.05, mktW: 0.90, mktWt: 0.95, oddMin: 1.30, oddMax: 4.50 };
+const CFG_DEF = { bank: { tu: 100, lu: 100, pi: 250 }, min: 0.25, piOn: true, piStake: 2.5, evMin: 0.05, mktW: 0.90, mktWt: 0.95, oddMin: 1.30, oddMax: 4.50 };
 let CFG = Object.assign({}, CFG_DEF, objOr(LS.get('cfg', {})));
 CFG.bank = Object.assign({}, CFG_DEF.bank, CFG.bank || {});
+if (CFG.botV !== 1) { CFG.piOn = true; CFG.botV = 1; }   // 1.2: o piloto passou a ser o «Lu sozinho», ligado de origem
 const saveDB = () => LS.set('db', DB);
 const saveBets = () => LS.set('bets', BETS);
 let SEED = null;
@@ -184,7 +185,7 @@ async function refresh() {
     const sett = settleAll();
     const pil = pilotRun();
     LS.set('last', Date.now());
-    toast(fails && !got ? 'Sem ligação à ESPN. Experimenta «Testar ligação» nas Definições.' : `Atualizado: ${got} jogo${got === 1 ? '' : 's'}${sett ? ` · ${sett} aposta${sett === 1 ? '' : 's'} fechada${sett === 1 ? '' : 's'}` : ''}${pil ? ` · o Piloto registou ${pil} aposta${pil === 1 ? '' : 's'} automática${pil === 1 ? '' : 's'}` : ''}`, 4200);
+    toast(fails && !got ? 'Sem ligação à ESPN. Experimenta «Testar ligação» nas Definições.' : `Atualizado: ${got} jogo${got === 1 ? '' : 's'}${sett ? ` · ${sett} aposta${sett === 1 ? '' : 's'} fechada${sett === 1 ? '' : 's'}` : ''}${pil ? ` · o Lu sozinho apostou em ${pil} jogo${pil === 1 ? '' : 's'}` : ''}`, 4200);
   } catch (e) {
     toast('❌ Falhou: ' + esc(e.message || e));
   } finally {
@@ -365,9 +366,9 @@ function snapshotPreds() {
 }
 
 /* =====================================================================
-   3) CONTAS: Tu · Mister Lu · Piloto automático
+   3) CONTAS: Tu · Mister Lu · Lu sozinho (bot)
    ===================================================================== */
-const ACC = { tu: { n: 'Tu', ic: 'star', c: 'var(--c-blue)' }, lu: { n: 'Mister Lu', ic: 'ball', c: 'var(--c-orange)' }, pi: { n: 'Piloto', ic: 'robot', c: 'var(--c-purple)' } };
+const ACC = { tu: { n: 'Tu', ic: 'star', c: 'var(--c-blue)' }, lu: { n: 'Mister Lu', ic: 'ball', c: 'var(--c-orange)' }, pi: { n: 'Lu sozinho', ic: 'robot', c: 'var(--c-purple)' } };
 function accStats(acc) {
   const B = BETS.filter(b => b.acc === acc);
   const dep = DEPOS.filter(d => d.acc === acc).reduce((s, d) => s + d.v, 0);
@@ -421,20 +422,57 @@ function settleAll() {
   safeGrade();
   return n;
 }
-/* 🤖 piloto: só com odds reais (ESPN ou Betano que meteste) */
+/* =====================================================================
+   🤖 LU SOZINHO: um bot que aposta sozinho, sem ninguém lhe mexer.
+   Regra fixa: em cada jogo da semana, aposta no lado do handicap que a
+   cabeça dele (o modelo puro, sem copiar a casa) acha melhor, à linha e
+   odd da ESPN do momento. Valor fixo. Serve para ver como ele se porta
+   de verdade. Teste às cegas 2022-26 com esta regra: ~48% de acerto e
+   −6% por aposta (a linha da casa sabe coisas que ele não sabe).
+   Guarda também a última linha que a app viu antes do jogo («fecho») para
+   medir se a linha andou para o lado dele (CLV): é o sinal mais rápido de
+   habilidade; o lucro demora centenas de apostas a dizer alguma coisa.
+   ===================================================================== */
+const BOT_TEST = { acerto: 0.479, roi: -0.058, n: 1289 };
+const botSelLine = (b, o) => !o ? null : b.mk === 'sp' ? (o.hl == null ? null : b.sel === 'h' ? o.hl : -o.hl) : b.mk === 'tot' ? (o.tl == null ? null : o.tl) : null;
+function botTrack() {   // enquanto o jogo não começa, vai atualizando a «linha de fecho»
+  let n = 0;
+  BETS.forEach(b => {
+    if (b.acc !== 'pi' || !b.auto) return;
+    const g = DB.g[b.g]; if (!g || g.s !== 'pre' || new Date(g.d).getTime() < Date.now()) return;
+    const L = botSelLine(b, g.o); if (L != null && L !== b.cl) { b.cl = L; n++; }
+  });
+  return n;
+}
+const botClv = b => b.cl == null || b.line == null ? null : b.mk === 'tot' ? (b.sel === 'o' ? b.cl - b.line : b.line - b.cl) : b.line - b.cl;   // em pontos: + = a linha andou a favor dele
 function pilotRun() {
-  if (!CFG.piOn) return 0;
+  const tr = botTrack();
+  if (!CFG.piOn) { if (tr) saveBets(); return 0; }
   const now = Date.now(); let n = 0;
   const done = new Set(BETS.filter(b => b.acc === 'pi' && b.mk !== 'multi').map(b => b.g));
-  Object.values(DB.g).filter(g => TEAMS[g.h] && TEAMS[g.a] && g.s === 'pre' && !done.has(g.id)).forEach(g => {
-    const t0 = new Date(g.d).getTime(); if (t0 < now + 5 * 60e3 || t0 > now + 4 * 864e5) return;
-    const v = predict(g).value; if (!v) return;
-    const stake = Math.max(CFG.min, r2(CFG.piStake));
-    if (accStats('pi').bal < stake) return;
-    newBet('pi', g, v, stake, { p: r2(v.p), ev: r2(v.ev), src: v.src }); n++;
-  });
-  if (n) saveBets();
+  Object.values(DB.g).filter(g => TEAMS[g.h] && TEAMS[g.a] && g.s === 'pre' && !done.has(g.id) && g.o && g.o.hl != null)
+    .sort((x, y) => x.d < y.d ? -1 : 1).forEach(g => {
+      const t0 = new Date(g.d).getTime(); if (t0 < now + 5 * 60e3 || t0 > now + 8 * 864e5) return;   // a semana inteira de uma vez
+      const P = predict(g), o = g.o, edge = P.mModel - (-o.hl);   // pontos que ele dá a mais (+) ou a menos (−) à equipa da casa
+      const sel = edge >= 0 ? 'h' : 'a', line = sel === 'h' ? o.hl : -o.hl;
+      const real = sel === 'h' ? o.hso : o.aso, odd = real || 1.91;
+      const stake = Math.max(CFG.min, r2(CFG.piStake));
+      if (accStats('pi').bal < stake) return;
+      const q = probs(P, 'sp', sel, line);
+      newBet('pi', g, { mk: 'sp', sel, line, odd }, stake, { auto: 1, edge: Math.round(Math.abs(edge) * 10) / 10, p: r2(q.w), ev: r2(evOf(q, odd)), src: o.p || 'ESPN', oe: !real, cl: line });
+      n++;
+    });
+  if (n || tr) saveBets();
   return n;
+}
+function botStats() {
+  const B = BETS.filter(b => b.acc === 'pi' && b.auto), S = B.filter(b => b.st === 'won' || b.st === 'lost' || b.st === 'push');
+  const w = S.filter(b => b.st === 'won').length, l = S.filter(b => b.st === 'lost').length;
+  const C = S.map(botClv).filter(x => x != null);
+  const big = S.filter(b => b.edge >= 3), bw = big.filter(b => b.st === 'won').length, bl = big.filter(b => b.st === 'lost').length;
+  const st = S.reduce((s, b) => s + b.stake, 0), ret = S.reduce((s, b) => s + (b.ret || 0), 0);
+  return { n: B.length, open: B.filter(b => b.st === 'open').length, w, l, p: S.length - w - l, hit: w + l ? w / (w + l) : null, roi: st ? (ret - st) / st : null, pl: r2(ret - st),
+    clv: C.length ? C.reduce((s, x) => s + x, 0) / C.length : null, clvPos: C.length ? C.filter(x => x > 0).length / C.length : null, clvNeg: C.filter(x => x < 0).length, bigHit: bw + bl ? bw / (bw + bl) : null, bigN: bw + bl };
 }
 
 /* =====================================================================
