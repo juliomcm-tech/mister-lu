@@ -1,0 +1,6 @@
+Mister Lu · NFL
+App de análise de jogos da NFL (futebol americano) e duelo de apostas virtuais.
+Abrir: https://juliomcm-tech.github.io/mister-lu/
+Ficheiros da app: index.html, seed.json (arquivo do modelo), sw.js, manifest.webmanifest, ícones, bg.webp.
+Código-fonte em src/ (python3 src/build.py gera o index.html). Estudos e teste às cegas em estudos/.
+Simulação, sem dinheiro real. © 2026 Júlio Melo

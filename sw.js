@@ -1,0 +1,26 @@
+/* Mister Lu · service worker
+   - a app (index.html) e o arquivo (seed.json, players.json): rede primeiro; sem rede → os guardados
+   - ícones, manifesto, fundo e tipos de letra: guardados
+   - ESPN e pontes: nunca guardados (vão sempre à rede) */
+const VERSION = 'lu-v1.0.0';
+const CORE = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './bg.webp', './seed.json'];
+self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE)).then(() => self.skipWaiting())); });
+self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('lu-') && k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+self.addEventListener('fetch', e => {
+  const req = e.request; if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (/espn\.com|corsproxy\.io|allorigins\.win/.test(url.hostname)) return;
+  const own = url.origin === self.location.origin;
+  if (req.mode === 'navigate' || (own && /\/(index\.html)?$/.test(url.pathname))) {
+    e.respondWith(fetch(url.href, { cache: 'no-cache', credentials: 'same-origin' }).then(res => { if (res.ok && own) { const copy = res.clone(); caches.open(VERSION).then(c => c.put('./index.html', copy)); } return res; })
+      .catch(() => caches.match('./index.html').then(r => r || caches.match('./'))));
+    return;
+  }
+  if (own && /(seed)\.json$/.test(url.pathname)) {
+    e.respondWith(fetch(req, { cache: 'no-cache' }).then(res => { if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); } return res; }).catch(() => caches.match(req)));
+    return;
+  }
+  if (own || /fonts\.(googleapis|gstatic)\.com/.test(url.hostname)) {
+    e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(res => { if (res && res.ok && res.type !== 'opaque') { const copy = res.clone(); caches.open('lu-runtime').then(c => c.put(req, copy)); } return res; })));
+  }
+});
