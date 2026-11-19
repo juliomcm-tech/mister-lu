@@ -63,7 +63,7 @@ function logo(t, sz) {
   return `<span class="logo" style="${s}background:${bg}"><img src="${esc(logoUrl(t))}" alt="${esc(t)}" loading="lazy" onerror="this.remove()"><b>${esc(t)}</b></span>`;
 }
 function renderTop() {
-  $('#chips').innerHTML = ['tu', 'lu'].map(k => `<span class="st" onclick="ACCF='${k}';go('contas')">${ic(ACC[k].ic)}${ACC[k].n.replace('Mister ', '')} ${eur(accStats(k).bal)}</span>`).join('');
+  $('#chips').innerHTML = ['tu', 'lu', 'pi'].map(k => `<span class="st" onclick="ACCF='${k}';go('contas')">${ic(ACC[k].ic)}${k === 'pi' ? 'Bot' : ACC[k].n.replace('Mister ', '')} ${eur(accStats(k).bal)}</span>`).join('');
   const last = LS.get('last', 0);
   setUpd(!SEED ? 'A carregar o arquivo do Lu…' : last ? 'Atualizado ' + new Date(last).toLocaleString('pt-PT', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) + ' · toca em ↻ para ir à ESPN' : 'Arquivo até ' + SEED.cut.split('-').reverse().join('/') + ' · toca em ↻ para os jogos de hoje');
   const nOpen = BETS.filter(b => b.acc === 'tu' && b.st === 'open').length;

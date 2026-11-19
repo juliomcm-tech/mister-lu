@@ -5,7 +5,7 @@
    Dados: arquivo do Lu (seed.json, nflverse até à véspera) + ESPN.
    Só vai à internet quando carregas em ↻. Tudo fica no telemóvel («lu_…»).
    ===================================================================== */
-const APP_VER = '1.2.1';
+const APP_VER = '1.2.2';
 
 /* ---------- utilitários ---------- */
 const $ = s => document.querySelector(s);
