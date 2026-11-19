@@ -5,7 +5,7 @@
    Dados: arquivo do Lu (seed.json, nflverse até à véspera) + ESPN.
    Só vai à internet quando carregas em ↻. Tudo fica no telemóvel («lu_…»).
    ===================================================================== */
-const APP_VER = '1.2.0';
+const APP_VER = '1.2.1';
 
 /* ---------- utilitários ---------- */
 const $ = s => document.querySelector(s);
@@ -262,15 +262,15 @@ function expPts(P, O, D, mu, HF, LAST, g) {
 /* distribuição da margem final (casa − fora): normal com os números-chave do futebol americano */
 const PMF = new Map();
 function marginPmf(m) {
+  // A linha do centro fica 50/50 (é assim que as casas a põem: metade cobre, metade não);
+  // os números-chave (3, 7, 10…) só decidem como a probabilidade se espalha à volta.
+  // Teste às cegas 2022-26: 0% de «valor» falso na linha principal (antes 2-12%) e linhas alternativas tão certas ou mais.
   const key = Math.round(m * 4) / 4; if (PMF.has(key)) return PMF.get(key);
   const sd = SEED.par.sdm, W = SEED.W, p = new Float64Array(141);
-  let mm = key;
-  for (let it = 0; it < 4; it++) {   // os pesos puxam a média: corrige para que a média final seja mesmo m
-    let s = 0, mean = 0;
-    for (let i = 0; i < 141; i++) { const k = i - 70; p[i] = Math.exp(-0.5 * ((k - mm) / sd) ** 2) * (W[Math.abs(k)] || 1); s += p[i]; }
-    for (let i = 0; i < 141; i++) { p[i] /= s; mean += (i - 70) * p[i]; }
-    mm += key - mean;
-  }
+  const fill = mm => { let s = 0, up = 0, dn = 0; for (let i = 0; i < 141; i++) { const k = i - 70; p[i] = Math.exp(-0.5 * ((k - mm) / sd) ** 2) * (W[Math.abs(k)] || 1); s += p[i]; } for (let i = 0; i < 141; i++) { p[i] /= s; const k = i - 70; if (k > key) up += p[i]; else if (k < key) dn += p[i]; } return up - dn; };
+  let lo = key - 8, hi = key + 8;
+  for (let it = 0; it < 30; it++) { const mid = (lo + hi) / 2; if (fill(mid) > 0) hi = mid; else lo = mid; }
+  fill((lo + hi) / 2);
   if (PMF.size > 4000) PMF.clear(); PMF.set(key, p); return p;
 }
 function Phi(x) { const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x / 2); return x >= 0 ? (1 + y) / 2 : (1 - y) / 2; }
