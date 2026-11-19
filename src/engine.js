@@ -19,7 +19,7 @@ const LS = {
 };
 const eur = v => (Number(v) || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const sEur = v => (v > 0 ? '+' : v < 0 ? '−' : '') + eur(Math.abs(v));
-const odd2 = v => v ? Number(v).toFixed(2) : '—';
+const odd2 = v => v ? Number(v).toFixed(2).replace('.', ',') : '—';
 const pct = v => Math.round(v * 100) + '%';
 const sPct = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v * 100)) + '%';
 const lineTxt = v => v == null ? '' : (v > 0 ? '+' : v < 0 ? '−' : '') + String(Math.abs(v)).replace('.', ',');
@@ -61,6 +61,7 @@ const TEAMS = {
 };
 const ESPN2NFL = { WSH: 'WAS', LAR: 'LA', JAC: 'JAX', OAK: 'LV', SD: 'LAC', STL: 'LA' };
 const nflAb = ab => { ab = String(ab || '').toUpperCase(); return TEAMS[ab] ? ab : ESPN2NFL[ab] || null; };
+const DIV = { BUF: 'AFC Este', MIA: 'AFC Este', NE: 'AFC Este', NYJ: 'AFC Este', BAL: 'AFC Norte', CIN: 'AFC Norte', CLE: 'AFC Norte', PIT: 'AFC Norte', HOU: 'AFC Sul', IND: 'AFC Sul', JAX: 'AFC Sul', TEN: 'AFC Sul', DEN: 'AFC Oeste', KC: 'AFC Oeste', LV: 'AFC Oeste', LAC: 'AFC Oeste', DAL: 'NFC Este', NYG: 'NFC Este', PHI: 'NFC Este', WAS: 'NFC Este', CHI: 'NFC Norte', DET: 'NFC Norte', GB: 'NFC Norte', MIN: 'NFC Norte', ATL: 'NFC Sul', CAR: 'NFC Sul', NO: 'NFC Sul', TB: 'NFC Sul', ARI: 'NFC Oeste', LA: 'NFC Oeste', SF: 'NFC Oeste', SEA: 'NFC Oeste' };
 const AFC = ['BUF', 'MIA', 'NE', 'NYJ', 'BAL', 'CIN', 'CLE', 'PIT', 'HOU', 'IND', 'JAX', 'TEN', 'DEN', 'KC', 'LV', 'LAC'];
 
 /* ---------- guardado ---------- */
@@ -68,7 +69,7 @@ const arrOr = v => Array.isArray(v) ? v : [], objOr = v => v && typeof v === 'ob
 let DB = LS.get('db', null); if (!DB || !DB.g || !DB.days) DB = { g: {}, days: {} };
 let BETS = arrOr(LS.get('bets', [])), PREDS = objOr(LS.get('preds', {})), DEPOS = arrOr(LS.get('depos', [])), SLIPS = objOr(LS.get('slips', {}));
 let BO = objOr(LS.get('bo', {}));                // odds da Betano que tu metes (por jogo)
-const CFG_DEF = { bank: { tu: 100, lu: 100, pi: 250 }, min: 0.25, piOn: true, piStake: 2.5, evMin: 0.05, mktW: 0.90, mktWt: 0.95, oddMin: 1.30, oddMax: 4.50 };
+const CFG_DEF = { bank: { tu: 100, lu: 100, pi: 250 }, min: 0.25, piOn: false, piStake: 2.5, evMin: 0.05, mktW: 0.90, mktWt: 0.95, oddMin: 1.30, oddMax: 4.50 };
 let CFG = Object.assign({}, CFG_DEF, objOr(LS.get('cfg', {})));
 CFG.bank = Object.assign({}, CFG_DEF.bank, CFG.bank || {});
 const saveDB = () => LS.set('db', DB);
@@ -150,7 +151,7 @@ function ingest(ev) {
   const off = /POSTPON|CANCEL|SUSPEND/i.test(String(st.name || '') + ' ' + String(st.description || ''));
   const s = off ? 'off' : (st.completed || st.state === 'post') ? 'post' : st.state === 'in' ? 'in' : 'pre';
   const id = String(ev.id), old = DB.g[id];
-  const g = { id, d: ev.date || c.date, h, a, s, ty: Number(ty) || 2, wk: (ev.week && ev.week.number) || (old && old.wk) || null, src: 'espn', neu: !!c.neutralSite };
+  const g = { id, d: ev.date || c.date, h, a, s, ty: Number(ty) || 2, wk: ev.week && ev.week.number ? (Number(ty) === 3 ? 18 + Number(ev.week.number) : Number(ev.week.number)) : (old && old.wk) || null, src: 'espn', neu: !!c.neutralSite };
   g.ed = etYmd(new Date(g.d));
   if (s === 'post' || s === 'in') { g.hs = scoreVal(H.score); g.as = scoreVal(A.score); g.per = Number(S.period) || 0; g.cl = st.shortDetail || st.detail || ''; g.ot = s === 'post' && (g.per > 4 || /OT/i.test(g.cl)); }
   const o = parseOdds(c.odds && c.odds[0], h, a);
@@ -162,7 +163,7 @@ function ingest(ev) {
 let BUSY = false;
 async function refresh() {
   if (BUSY || !SEED) return; BUSY = true;
-  const btn = $('#btnRefresh'); if (btn) btn.classList.add('spin');
+  const btn = $('#btnRefresh'); if (btn) btn.classList.add('spin'); document.body.classList.add('busy');
   const T = todayET(), end = ymdAdd(T, 8);
   const cut = SEED.cut.replace(/-/g, '');
   let fails = 0, got = 0;
@@ -183,11 +184,11 @@ async function refresh() {
     const sett = settleAll();
     const pil = pilotRun();
     LS.set('last', Date.now());
-    toast(fails && !got ? 'Sem ligação à ESPN. Experimenta «Testar ligação» no Mais.' : `✓ ${got} jogos lidos${sett ? ` · ${sett} apostas fechadas` : ''}${pil ? ` · piloto fez ${pil}` : ''}`, 4200);
+    toast(fails && !got ? 'Sem ligação à ESPN. Experimenta «Testar ligação» nas Definições.' : `Atualizado: ${got} jogo${got === 1 ? '' : 's'}${sett ? ` · ${sett} aposta${sett === 1 ? '' : 's'} fechada${sett === 1 ? '' : 's'}` : ''}${pil ? ` · o Piloto registou ${pil} aposta${pil === 1 ? '' : 's'} automática${pil === 1 ? '' : 's'}` : ''}`, 4200);
   } catch (e) {
     toast('❌ Falhou: ' + esc(e.message || e));
   } finally {
-    BUSY = false; if (btn) btn.classList.remove('spin'); render();
+    BUSY = false; if (btn) btn.classList.remove('spin'); document.body.classList.remove('busy'); render();
   }
 }
 
@@ -225,7 +226,7 @@ function buildModel() {
     LAST[g.h] = LAST[g.a] = g.ed;
   });
   // registos da época
-  const espnIds = new Set(Object.values(DB.g).map(g => g.id));
+  const espnIds = new Set(Object.values(DB.g).filter(g => g.src === 'espn').map(g => g.id));
   const all = seedG.filter(g => g.s === 'post' && !espnIds.has(g.espn)).concat(espnFin.filter(g => seasonOf(g.ed) === season));
   const rec = {}; const R = t => rec[t] = rec[t] || { w: 0, l: 0, t: 0, hw: 0, hl: 0, aw: 0, al: 0, pf: 0, pa: 0, last: [] };
   all.filter(g => seasonOf(g.ed) === season).sort((x, y) => x.d < y.d ? -1 : 1).forEach(g => {
@@ -237,6 +238,14 @@ function buildModel() {
   return { O, D, mu, HF, LAST, rec, season, nEspn: espnFin.length, seedG };
 }
 const getModel = () => MODEL || (MODEL = buildModel());
+function mergeSeed() {
+  let n = 0;
+  (SEED.games || []).forEach(r => {
+    const id = String(r[8] || ''); if (!id || r[4] == null || (DB.g[id] && DB.g[id].src === 'espn')) return;
+    DB.g[id] = { id, d: r[0] + 'T18:00:00Z', ed: r[0].replace(/-/g, ''), wk: r[1], h: r[2], a: r[3], s: 'post', hs: r[4], as: r[5], ot: !!r[9], ty: r[10] ? 3 : 2, src: 'seed' }; n++;
+  });
+  if (n) saveDB();
+}
 function restOf(LAST, t, g) {
   let l = LAST[t] && LAST[t] < g.ed ? LAST[t] : null;
   for (const x of Object.values(DB.g)) if ((x.h === t || x.a === t) && x.s !== 'off' && x.ed < g.ed && (!l || x.ed > l)) l = x.ed;
@@ -334,7 +343,7 @@ function selLabel(g, mk, sel, line) {
   if (mk === 'sp') return T(sel) + ' ' + lineTxt(line);
   return (sel === 'o' ? 'Mais de ' : 'Menos de ') + gl(line) + ' pontos';
 }
-const mkName = mk => ({ ml: 'Vencedor (c/ prolongamento)', sp: 'Handicap', tot: 'Total de pontos' }[mk] || mk);
+const mkName = mk => ({ ml: 'Vencedor (incl. prolongamento)', sp: 'Handicap', tot: 'Total de pontos' }[mk] || mk);
 const gLabel = g => tNick(g.h) + ' – ' + tNick(g.a);
 
 function snapshotPreds() {

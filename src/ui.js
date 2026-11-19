@@ -68,7 +68,7 @@ function logo(t, sz) {
   return `<span class="logo" style="${s}background:${bg}"><img src="${esc(logoUrl(t))}" alt="${esc(t)}" loading="lazy" onerror="this.remove()"><b>${esc(t)}</b></span>`;
 }
 function renderTop() {
-  $('#chips').innerHTML = ['tu', 'lu', 'pi'].map(k => `<span class="st" onclick="ACCF='${k}';go('contas')">${ic(ACC[k].ic)}${ACC[k].n.replace('Mister ', '')} ${eur(accStats(k).bal)}</span>`).join('');
+  $('#chips').innerHTML = ['tu', 'lu'].map(k => `<span class="st" onclick="ACCF='${k}';go('contas')">${ic(ACC[k].ic)}${ACC[k].n.replace('Mister ', '')} ${eur(accStats(k).bal)}</span>`).join('');
   const last = LS.get('last', 0);
   setUpd(!SEED ? 'A carregar o arquivo do Lu…' : last ? 'Atualizado ' + new Date(last).toLocaleString('pt-PT', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) + ' · toca em ↻ para ir à ESPN' : 'Arquivo até ' + SEED.cut.split('-').reverse().join('/') + ' · toca em ↻ para os jogos de hoje');
   const nOpen = BETS.filter(b => b.acc === 'tu' && b.st === 'open').length;
@@ -123,12 +123,19 @@ function viewInicio() {
     <div class="big">${G0.length ? `${G0.length} <b>jogo${G0.length === 1 ? '' : 's'}</b>` : `Mister <b>Lu</b>`}</div>
     <div class="sub">${!Object.keys(DB.g).length ? 'Toca em ↻ e vou buscar a semana à ESPN.' : live ? live + ' a decorrer agora. ' : first ? 'Próximo: ' + dayLbl(first.d) + ' às ' + hhmm(first.d) + '. ' : 'Semana acabada.'}${done ? ` ${done} já jogados.` : ''}${picks.length || S0 ? ' O meu boletim está pronto.' : ''}</div>
     <div class="face">${luFace(Y.bn && Y.u < 0 ? 'sad' : Y.bn ? 'win' : 'ok')}</div>
-    <div class="kpis"><div class="kpi"><small>Semana passada · vencedor</small><b>${Y.n ? Y.w + '/' + Y.n : '—'}</b></div>
-      <div class="kpi"><small>Semana passada · apostas</small><b class="${Y.u > 0 ? 'pos' : Y.u < 0 ? 'neg' : ''}">${Y.bn ? Y.bw + '/' + Y.bn : '—'}</b></div>
-      <div class="kpi"><small>Semana passada · seguro</small><b>${Y.sr ? (Y.sr.st === 'won' ? '<span class="pos">✓</span>' : Y.sr.st === 'lost' ? '<span class="neg">✗</span>' : '…') : '—'}</b></div></div></div>`;
+    ${Y.n || Y.S ? `<div class="small" style="margin-top:14px;opacity:.9;letter-spacing:.14em;text-transform:uppercase;font-size:.66rem">Semana passada</div><div class="kpis" style="margin-top:6px"><div class="kpi"><small>vencedor</small><b>${Y.n ? Y.w + '/' + Y.n : '—'}</b></div>
+      <div class="kpi"><small>apostas do Lu</small><b class="${Y.u > 0 ? 'pos' : Y.u < 0 ? 'neg' : ''}">${Y.bn ? Y.bw + '/' + Y.bn : '—'}</b></div>
+      <div class="kpi"><small>seguro</small><b>${Y.sr ? (Y.sr.st === 'won' ? '<span class="pos">✓</span>' : Y.sr.st === 'lost' ? '<span class="neg">✗</span>' : '…') : '—'}</b></div></div>` : ''}</div>`;
   h += installBanner();
-  if (!Object.keys(DB.g).length) return h + `<div class="pn empty"><div class="face">${luFace('ok')}</div><div class="pn-h" style="justify-content:center">Olá! Sou o Mister Lu.</div><div class="muted small" style="margin:6px 0 14px">Só percebo de futebol americano. Trago 17 épocas estudadas, com as linhas de fecho das casas: sei onde estão os números-chave (3 e 7) e quanto vale cada linha alternativa.</div><button class="btn fill" onclick="refresh()">${ic('refresh')} Ir buscar a semana</button></div>`;
-  h += `<div class="pn hl">${pnH(`${ic('check')} Veredito da semana passada`, Y.G.length + ' jogos')}`;
+  if (!LS.get('last', 0)) return h + `<div class="pn empty"><div class="face">${luFace('ok')}</div><div class="pn-h" style="justify-content:center">Olá! Sou o Mister Lu.</div><div class="muted small" style="margin:6px 0 14px">Só percebo de futebol americano. Trago 17 épocas estudadas, com as linhas de fecho das casas: sei onde estão os números-chave (3 e 7) e quanto vale cada linha alternativa.</div><button class="btn fill" onclick="refresh()">${ic('refresh')} Ir buscar a semana</button><div class="small muted" style="margin-top:12px">Simulação: sem dinheiro real e sem ligação à Betano. +18 · Joga com responsabilidade.</div></div>`;
+  if (pre.length) {
+    h += `<div class="pn">${pnH(`${ic('target')} O Lu guardou para esta semana`, '')}`;
+    if (S0) h += catH('shield', 'Boletim seguro', 'var(--c-blue)', `Lu ${pct(S0.p)}`) + S0.legs.map(l => `<div class="why"><span>${esc(l.lb)} <span class="muted small">${esc(l.gl)}</span></span><b>${pct(l.p)}</b></div>`).join('');
+    if (picks.length) h += catH('gem', 'Apostas com valor', 'var(--c-orange)', picks.length + '') + picks.slice(0, 4).map(({ g, P }) => `<div class="why" onclick="GT='mk';openGame('${g.id}')"><span>${esc(selLabel(g, P.value.mk, P.value.sel, P.value.line))} <span class="muted small">${esc(g.h)}–${esc(g.a)} ${dayLbl(g.d)}</span></span><b>@ ${odd2(P.value.odd)} <span class="pos small">${sPct(P.value.ev)}</span></b></div>`).join('');
+    if (!S0 && !picks.length) h += `<div class="small muted">Nada com confiança suficiente. Mete as odds da Betano nos jogos: o Lu diz onde há valor.</div>`;
+    h += `<button class="btn fill full" style="margin-top:10px" onclick="DAY=0;BT='seg';go('jogos')">${ic('ball')} Abrir a semana e o boletim</button></div>`;
+  }
+  h += `<div class="pn hl">${pnH(`${ic('check')} Veredito da semana passada`, Y.G.length + (Y.G.length === 1 ? ' jogo' : ' jogos'))}`;
   if (!Y.n) h += `<div class="small muted">${Y.G.length ? 'O Lu não tinha previsões guardadas (só guarda quando tocas em ↻ antes dos jogos).' : 'Sem jogos lidos da semana passada: toca em ↻.'}</div>`;
   else {
     h += attr('Acertou no vencedor', Math.round(Y.w / Y.n * 100), 'var(--c-green)', `${Y.w} de ${Y.n}`, 100);
@@ -137,16 +144,9 @@ function viewInicio() {
     if (Y.S) h += catH('shield', 'Boletim seguro', 'var(--c-blue)', Y.sr.st === 'won' ? '<b class="pos">ganhou</b>' : Y.sr.st === 'lost' ? '<b class="neg">perdeu</b>' : 'em curso') + Y.S.legs.map(l => `<div class="why"><span>${okIc(l.r == null ? null : l.r !== 'lost')} ${esc(l.lb)}</span><b class="muted">${pct(l.p)}</b></div>`).join('');
   }
   h += `<button class="btn go full" style="margin-top:10px" onclick="DAY=-1;go('jogos')">${ic('list')} Ver a semana passada</button></div>`;
-  if (pre.length) {
-    h += `<div class="pn">${pnH(`${ic('target')} O Lu guardou para esta semana`, '')}`;
-    if (S0) h += catH('shield', 'Boletim seguro', 'var(--c-blue)', `Lu ${pct(S0.p)}`) + S0.legs.map(l => `<div class="why"><span>${esc(l.lb)} <span class="muted small">${esc(l.gl)}</span></span><b>${pct(l.p)}</b></div>`).join('');
-    if (picks.length) h += catH('gem', 'Apostas com valor', 'var(--c-orange)', picks.length + '') + picks.slice(0, 4).map(({ g, P }) => `<div class="why" onclick="GT='mk';openGame('${g.id}')"><span>${esc(selLabel(g, P.value.mk, P.value.sel, P.value.line))} <span class="muted small">${esc(g.h)}–${esc(g.a)} ${dayLbl(g.d)}</span></span><b>@ ${odd2(P.value.odd)} <span class="pos small">${sPct(P.value.ev)}</span></b></div>`).join('');
-    if (!S0 && !picks.length) h += `<div class="small muted">Nada com confiança suficiente. Mete as odds da Betano nos jogos: o Lu diz onde há valor.</div>`;
-    h += `<button class="btn fill full" style="margin-top:10px" onclick="DAY=0;BT='seg';go('jogos')">${ic('ball')} Abrir a semana e o boletim</button></div>`;
-  }
   h += `<div class="pn">${pnH(`${ic('chart')} Como vai o Lu`, ST.n + ' jogos previstos')}`;
-  h += ST.n ? `<div class="mosaic"><div><b>${pct(ST.win / ST.n)}</b><small>vencedor certo</small></div><div><b>${ST.spN ? pct(ST.spW / ST.spN) : '—'}</b><small>lado do handicap</small></div><div><b class="${ST.bu >= 0 ? 'pos' : 'neg'}">${ST.bn ? unitsTxt(ST.bu) : '—'}</b><small>apostas do Lu</small></div></div>`
-    : `<div class="small muted">As estatísticas enchem-se sozinhas: toca em ↻ antes dos jogos de cada semana.</div>`;
+  h += ST.n >= 10 ? `<div class="mosaic"><div><b>${pct(ST.win / ST.n)}</b><small>vencedor certo</small></div><div><b>${ST.spN ? pct(ST.spW / ST.spN) : '—'}</b><small>lado do handicap</small></div><div><b class="${ST.bu >= 0 ? 'pos' : 'neg'}">${ST.bn ? unitsTxt(ST.bu) : '—'}</b><small>apostas do Lu</small></div></div>`
+    : `<div class="small muted">${ST.n ? `Ainda poucos jogos (${ST.n}) para tirar conclusões.` : 'As estatísticas enchem-se sozinhas: toca em ↻ antes dos jogos de cada semana.'}</div>`;
   h += `<button class="btn go full" style="margin-top:8px" onclick="openStats()">${ic('chart')} Estatísticas completas</button></div>`;
   return h;
 }
@@ -163,7 +163,8 @@ function dateStrip() {
   let h = '<div class="dates">';
   for (let i = -3; i <= 2; i++) {
     const w = L.wk + i; if (w < 1) continue;
-    h += `<button class="${DAY === i ? 'on' : ''}" onclick="DAY=${i};render()"><b>${w > 18 ? 'P' + (w - 18) : w}</b><small>${i === 0 ? 'esta' : i === -1 ? 'passada' : i === 1 ? 'próxima' : w > 18 ? 'playoffs' : 'semana'}</small></button>`;
+    const G = dayGames(i), rng = G.length ? (() => { const a = new Date(G[0].d), b = new Date(G[G.length - 1].d), f = x => x.getDate(); const mo = x => x.toLocaleDateString('pt-PT', { month: 'short' }).replace('.', ''); return f(a) === f(b) ? f(a) + ' ' + mo(b) : a.getMonth() === b.getMonth() ? f(a) + '–' + f(b) + ' ' + mo(b) : f(a) + ' ' + mo(a) + '–' + f(b) + ' ' + mo(b); })() : '—';
+    h += `<button class="${DAY === i ? 'on' : ''}" onclick="DAY=${i};render()"><b>${w > 18 ? 'P' + (w - 18) : w}</b><small>${esc(rng)}</small></button>`;
   }
   return h + '</div>';
 }
@@ -177,8 +178,14 @@ function viewJogos() {
   if (G.some(g => g.s === 'post')) h += pastPanel(DAY);
   if (G.length) {
     h += `<div class="row" style="margin:16px 0 4px"><div class="cat" style="margin:0;flex:1">${ic('cal')}${esc(wkLbl(DAY))}</div><button class="btn sm" onclick="openHelp()">${ic('info')} O que quer dizer?</button></div>
-      <div class="seg" style="margin-bottom:4px">${[['hora', 'Hora'], ['conf', 'Confiança'], ['val', 'Valor']].map(([k, t]) => `<button class="${SORT === k ? 'on' : ''}" onclick="SORT='${k}';LS.set('sort','${k}');render()">${t}</button>`).join('')}</div>` + sortGames(G).map(gameCard).join('');
+      <div class="seg" style="margin-bottom:4px">${[['hora', 'Hora'], ['conf', 'Confiança'], ['val', 'Valor']].map(([k, t]) => `<button class="${SORT === k ? 'on' : ''}" onclick="SORT='${k}';LS.set('sort','${k}');render()">${t}</button>`).join('')}</div>` + withDays(sortGames(G));
   } else h += `<div class="pn small muted">${Object.keys(DB.g).length ? 'Sem jogos guardados para esta semana.' : 'Toca em ↻ para o Lu ir buscar os jogos.'}</div>`;
+  return h;
+}
+function withDays(G) {
+  if (SORT !== 'hora') return G.map(gameCard).join('');
+  let last = '', h = '';
+  G.forEach(g => { const d = new Date(g.d).toLocaleDateString('pt-PT', { weekday: 'long', day: '2-digit', month: '2-digit' }); if (d !== last) { h += `<div class="dayh">${esc(d)}</div>`; last = d; } h += gameCard(g); });
   return h;
 }
 function pastPanel(off) {
@@ -191,6 +198,7 @@ function pastPanel(off) {
   return h + `<div class="small muted" style="margin-top:6px">u = unidades (1 u = o valor de uma aposta). Tudo foi guardado antes de cada jogo começar.</div></div>`;
 }
 /* ---------- 🛡️ BOLETIM DE HOJE ---------- */
+let BOPEN = LS.get('bopen', false);
 let SS = { k: '', C: [], sel: new Set(), odd: {} };
 const legKey = c => c.g.id + '|' + c.mk + '|' + c.sel + '|' + c.line;
 function boletimPanel(C, auto, picks) {
@@ -198,15 +206,17 @@ function boletimPanel(C, auto, picks) {
   if (SS.k !== k) { SS = { k, C, sel: new Set(C.filter((_, i) => auto.has(i)).map(legKey)), odd: {}, stake: Math.max(CFG.min, 1) }; }
   SS.C = C; SS.auto = new Set(C.filter((_, i) => auto.has(i)).map(legKey));
   if (C.length) safeLogSave(C.filter((_, i) => auto.has(i)));
-  let h = `<div class="pn hl">${pnH(`${ic('target')} Boletim ${DAY ? 'da próxima semana' : 'da semana'}`, esc(wkLbl(DAY)))}
-    <div class="seg"><button class="${BT === 'seg' ? 'on' : ''}" onclick="BT='seg';render()">${ic('shield')} Seguro</button><button class="${BT === 'val' ? 'on' : ''}" onclick="BT='val';render()">${ic('gem')} Valor${picks.length ? ' ' + picks.length : ''}</button></div>`;
+  const Pall = C.filter((_, i) => auto.has(i)).reduce((a, c) => a * c.p, 1), nAuto = auto.size;
+  let h = `<div class="pn hl"><div class="fold ${BOPEN ? 'open' : ''}" onclick="BOPEN=!BOPEN;LS.set('bopen',BOPEN);render()">${ic('target')}<b style="font-size:1.08rem">Boletim do Lu</b><span class="muted small">${nAuto ? `${nAuto} seleç${nAuto === 1 ? 'ão' : 'ões'} · ${pct(Pall)}` : ''}${picks.length ? ` · ${picks.length} com valor` : ''}</span><span class="chev">${ic('back')}</span></div>`;
+  if (!BOPEN) return h + '</div>';
+  h += `<div class="div"></div><div class="seg"><button class="${BT === 'seg' ? 'on' : ''}" onclick="BT='seg';render()">${ic('shield')} Seguro</button><button class="${BT === 'val' ? 'on' : ''}" onclick="BT='val';render()">${ic('gem')} Valor${picks.length ? ' ' + picks.length : ''}</button></div>`;
   if (BT === 'seg') {
     if (!C.length) h += `<div class="small muted" style="margin-top:10px">Nenhuma seleção chega aos ${pct(SAFE_LEG)}. Melhor não forçar.</div>`;
     else {
-      h += `<div class="small muted" style="margin:10px 0 2px">As seleções mais seguras (handicaps e totais alternativos), juntas enquanto o boletim inteiro passa dos ${pct(SAFE_SLIP)}. <b>Seguro não é certo</b>: num boletim de 70%, 3 em cada 10 falham. As odds a cinzento são só estimativa: para registar, mete a da Betano em cada uma.</div>` +
+      h += `<div class="small muted" style="margin:10px 0 2px">Seguro não é certo: 3 em cada 10 boletins de 70% falham. Odds a cinzento são estimativas — mete as da Betano.</div>` +
         C.map((c, i) => { const key = legKey(c), od = SS.odd[key] != null ? SS.odd[key] : c.odd; return `<div class="leg"><input type="checkbox" ${SS.sel.has(key) ? 'checked' : ''} onchange="ssTog(${i},this.checked)">
         <div><div class="t">${esc(c.lb)}</div><div class="g">${dayLbl(c.g.d)} ${hhmm(c.g.d)} · ${esc(c.g.h)} – ${esc(c.g.a)} · ${esc(mkName(c.mk))}</div><div class="p">Lu ${pct(c.p)}</div></div>
-        <input class="od${SS.odd[key] == null ? ' est' : ''}" inputmode="decimal" value="${String(od).replace('.', ',')}" oninput="ssOdd(${i},this)"></div>`; }).join('') + `<div class="sum" id="ssSum"></div>`;
+        <input class="od${SS.odd[key] == null ? ' est' : ''}" inputmode="decimal" value="${odd2(od)}" oninput="ssOdd(${i},this)"></div>`; }).join('') + `<div class="sum" id="ssSum"></div>`;
     }
     const st = safeStats();
     if (st) h += `<div class="small muted" style="margin-top:8px">${ic('chart')} Seguro até hoje: acertou <b>${st.w}/${st.n}</b> seleções (${pct(st.w / st.n)}) · prometia ${pct(st.p)}</div>`;
@@ -225,9 +235,9 @@ function ssSum() {
   const L = ssLegs();
   if (!L.length) { el.innerHTML = '<span class="muted">Escolhe pelo menos uma seleção.</span>'; return; }
   const P = L.reduce((a, x) => a * x.c.p, 1), O = L.reduce((a, x) => a * (x.odd > 1 ? x.odd : 1), 1), ev = P * O - 1;
-  el.innerHTML = `<div class="n"><span>${L.length} seleç${L.length === 1 ? 'ão' : 'ões'} · Lu dá <b class="pos" style="font-size:1.1rem">${pct(P)}</b></span><b>@ ${O.toFixed(2)}</b></div>
-   <div class="small ${ev >= 0 ? 'pos' : 'muted'}">${ev >= 0 ? 'Com estas odds o boletim tem valor ' + sPct(ev) : 'Com estas odds paga ' + sPct(ev) + ' abaixo do justo (normal nas seguras)'}</div>
-   <div class="row" style="margin-top:8px"><div style="flex:1"><label class="f" style="margin-top:0">Valor (€)</label><input class="in" id="ssStake" inputmode="decimal" value="${String(SS.stake).replace('.', ',')}" oninput="SS.stake=num(this.value)"></div></div>
+  el.innerHTML = `<div class="n"><span>${L.length} seleç${L.length === 1 ? 'ão' : 'ões'} · Lu dá <b style="font-size:1.1rem">${pct(P)}</b></span><b>@ ${odd2(O)}</b></div>
+   <div class="small ${ev >= 0 ? 'pos' : 'muted'}">${ev >= 0 ? 'Com estas odds o boletim tem valor ' + sPct(ev) : 'Paga ' + Math.abs(Math.round(ev * 100)) + '% menos do que o justo (normal nas seguras)'}</div>
+   <div class="row" style="margin-top:8px"><div style="flex:1"><label class="f" style="margin-top:0">Montante (€)</label><input class="in" id="ssStake" inputmode="decimal" value="${String(SS.stake).replace('.', ',')}" oninput="SS.stake=num(this.value)"></div></div>
    <div class="row" style="margin-top:8px"><button class="btn fill full" onclick="placeSlip()">${ic('check')} Registar múltipla</button><button class="btn go" onclick="shareSlip()" aria-label="Partilhar">${ic('share')}</button></div>`;
 }
 function placeSlip() {
@@ -249,14 +259,13 @@ function placeSlip() {
     msg = same ? 'É o meu boletim. Vou contigo!' : `Mexeste no boletim. Eu fico com o meu: <b>${mine.map(c => esc(c.lb)).join(' + ')}</b>.`;
   } else { BETS.push({ id: 'gp' + Date.now().toString(36), acc: 'lu', g: L[0].c.g.id, gl: '', gd: L[0].c.g.d, mk: 'pass', stake: 0, odd: 0, t: Date.now(), st: 'pass', ret: 0, lb: 'Passou', duel }); msg = 'Estou sem saldo… passo esta.'; mood = 'sad'; }
   saveBets();
-  openSheet('Duelo marcado', `<div class="opinion"><div class="face">${luFace(mood)}</div><div>${msg}</div></div>
-    <div class="row" style="margin-top:14px"><button class="btn full" onclick="closeSheet();render()">Fechar</button><button class="btn fill full" onclick="closeSheet();go('duelo')">Ver duelo</button></div>`, true);
+  openSheet('Duelo marcado', duelBox(duel, mood, msg), true);
   render();
 }
 function shareSlip() {
   const L = ssLegs(); if (!L.length) return;
   const P = L.reduce((a, x) => a * x.c.p, 1), O = L.reduce((a, x) => a * x.odd, 1);
-  shareText(`🏒 Boletim seguro do Mister Lu · ${new Date(L[0].c.g.d).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' })}\n` + L.map((x, i) => `${i + 1}) ${x.c.lb} @ ${odd2(x.odd)} (${x.c.g.h}–${x.c.g.a}, ${hhmm(x.c.g.d)})`).join('\n') + `\nOdd total ${O.toFixed(2)} · o Lu dá ${pct(P)}\n(simulação, sem dinheiro real)`);
+  shareText(`🏈 Boletim seguro do Mister Lu · ${new Date(L[0].c.g.d).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' })}\n` + L.map((x, i) => `${i + 1}) ${x.c.lb} @ ${odd2(x.odd)} (${x.c.g.h}–${x.c.g.a}, ${hhmm(x.c.g.d)})`).join('\n') + `\nOdd total ${odd2(O)} · o Lu dá ${pct(P)}\n(simulação, sem dinheiro real)`);
 }
 async function shareText(txt) {
   try { if (navigator.share) { await navigator.share({ text: txt }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
@@ -294,11 +303,11 @@ function gameCard(g) {
     bet = v.pk ? `<div class="say"><b>Aposta do Lu:</b> ${esc(v.pk.lb)} @ ${odd2(v.pk.odd)} → ${v.pkr === 'won' ? `<b class="pos">ganhou ${unitsTxt(v.pku)}</b>` : v.pkr === 'lost' ? `<b class="neg">perdeu</b>` : 'devolvida'}</div>` : `<div class="mk">O Lu não apostou neste jogo.</div>`;
   } else if (g.s === 'post') say = `<span class="muted">Sem previsão guardada antes do jogo.</span>`;
   else {
-    say = `<b>Lu:</b> ${esc(tNick(fav))} ${Math.abs(P.m) < 1 ? 'muito equilibrado' : 'por ' + f1(P.m)} (${pct(Math.max(P.pML, 1 - P.pML))}) · ${Math.round(P.t)} pontos`;
+    say = `<b>Lu:</b> ${esc(tNick(fav))} ${Math.abs(P.m) < 1 ? 'muito equilibrado' : 'por ' + f1(P.m)}${o.hl != null ? ` (linha ${lineTxt(-Math.abs(o.hl))})` : ''} · ganha ${pct(Math.max(P.pML, 1 - P.pML))} · ${Math.round(P.t)} pontos`;
     bet = g.s === 'pre' ? (P.value ? `<div class="say"><b style="color:var(--c-orange)">👉 Aposta do Lu:</b> ${esc(selLabel(g, P.value.mk, P.value.sel, P.value.line))} @ ${odd2(P.value.odd)} <span class="pos small">valor ${sPct(P.value.ev)}</span></div>` : `<div class="mk">Aposta do Lu: nenhuma ainda — mete as odds da Betano na ficha.</div>`) : '';
   }
-  const book = o.hl != null || o.hml ? `<div class="mk">${ic('coins')} ${esc(o.p || 'Casa')}: ${o.hl != null ? (o.hl === 0 ? 'equilibrado' : `${esc(o.hl < 0 ? g.h : g.a)} favorito por ${f1(o.hl)}`) : ''}${o.tl != null ? ` · total ${gl(o.tl)}` : ''}${o.hml ? ` · ${esc(g.h)} ${odd2(o.hml)} / ${esc(g.a)} ${odd2(o.aml)}` : ''}</div>` : '';
-  const team = (t, r, side) => `<div class="team">${logo(t)}<div style="min-width:0"><div class="nm${nmLg(t)}">${esc(tNick(t))}</div><div class="rc">${recTxt(r)} · ${side === 'h' ? 'casa' : 'fora'}</div></div></div>`;
+  const book = o.hl != null || o.hml ? `<div class="mk">${ic('coins')} ${esc(o.p || 'Casa')}: ${o.hl != null ? (o.hl === 0 ? 'pick’em' : `${esc(o.hl < 0 ? g.h : g.a)} ${lineTxt(-Math.abs(o.hl))}`) : ''}${o.tl != null ? ` · O/U ${gl(o.tl)}` : ''}${o.hml ? ` · ${esc(g.h)} ${odd2(o.hml)} / ${esc(g.a)} ${odd2(o.aml)}` : ''}</div>` : '';
+  const team = (t, r, side) => `<div class="team">${logo(t)}<div style="min-width:0"><div class="nm${nmLg(t)}">${esc(tNick(t))}</div><div class="rc">${recTxt(r)} · ${esc(DIV[t] || '')}</div></div></div>`;
   return `<div class="gc" onclick="GT='ana';openGame('${g.id}')"><div class="notch">${notch}</div>${tags.length ? `<div class="hd">${tags.join('')}</div>` : ''}
   <div class="tm">${team(g.h, rh, 'h')}<div class="vsx">VS</div>${team(g.a, ra, 'a')}</div>${board}
   <div class="ft"><div class="say">${say}</div>${bet}${book}</div></div>`;
@@ -327,8 +336,8 @@ function openGame(id) {
   else h += tabAnalise(g, P);
   const mine = BETS.filter(b => b.st !== 'pass' && (b.g === g.id || (b.legs && b.legs.some(l => l.g === g.id))));
   if (mine.length) h += catH('list', 'Apostas neste jogo', 'var(--c-blue)') + `<div class="pn" style="margin-top:0">${mine.map(betRow).join('')}</div>`;
-  if (canBet(g)) h += `<div class="cta"><button class="btn fill full" onclick="openBet('${g.id}')">${ic('target')} Apostar neste jogo</button></div>`;
-  openSheet(esc(g.h) + ' <span class="muted">vs</span> ' + esc(g.a), h);
+  if (canBet(g) && GT !== 'mk') h += `<div class="cta"><button class="btn fill full" onclick="openBet('${g.id}')">${ic('target')} Apostar neste jogo</button></div>`;
+  openSheet(esc(tNick(g.h)) + ' <span class="muted">vs</span> ' + esc(tNick(g.a)), h);
 }
 function tabAnalise(g, P) {
   const s1 = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1).replace('.', ',');
@@ -336,8 +345,9 @@ function tabAnalise(g, P) {
   const mpp = []; for (let i = 0; i < 141; i++) mpp.push([i - 70, P.pm[i]]);
   const top = mpp.filter(([k]) => favH ? k > 0 : k < 0).sort((x, y) => y[1] - x[1]).slice(0, 4);
   let h = catH('chart', 'Previsão', 'var(--c-blue)') +
-    attr(esc(tNick(g.h)) + ' ganha', Math.round(P.pML * 100), tCol(g.h), pct(P.pML), 100) +
-    attr(esc(tNick(g.a)) + ' ganha', Math.round((1 - P.pML) * 100), tCol(g.a), pct(1 - P.pML), 100) +
+    (g.s !== 'pre' && PREDS[g.id] ? `<div class="opinion" style="margin:0 0 10px"><div>${ic('save')} <b>Antes do jogo o Lu disse:</b> ${esc(tNick(PREDS[g.id].ml >= 0.5 ? g.h : g.a))} ganha (${pct(Math.max(PREDS[g.id].ml, 1 - PREDS[g.id].ml))}), margem ${f1(PREDS[g.id].m)}, ${Math.round(PREDS[g.id].t)} pontos.</div></div>` : '') +
+    attr(esc(tNick(g.h)) + ' ganha', Math.round(P.pML * 100), P.pML >= 0.5 ? 'var(--ink)' : 'var(--mut2)', pct(P.pML), 100) +
+    attr(esc(tNick(g.a)) + ' ganha', Math.round((1 - P.pML) * 100), P.pML < 0.5 ? 'var(--ink)' : 'var(--mut2)', pct(1 - P.pML), 100) +
     `<div class="small muted">Margens mais prováveis para ${esc(tNick(F))}: ${top.map(([k, p]) => `<b>${Math.abs(k)}</b> ${pct(p)}`).join(' · ')} — os números-chave do futebol americano (3 e 7).</div>`;
   h += catH('chip', 'Porque pensa assim', 'var(--c-purple)', 'pontos para ' + esc(g.h)) +
     P.reasons.map(([t, v]) => `<div class="why"><span>${esc(t)}</span><b class="${v > 0.05 ? 'pos' : v < -0.05 ? 'neg' : 'muted'}">${Math.abs(v) < 0.05 ? '0' : s1(v)}</b></div>`).join('') +
@@ -353,13 +363,13 @@ function tabAnalise(g, P) {
 function tabOdds(g, P) {
   const b = BO[g.id] || {}, done = g.s !== 'pre';
   const fair = (mk, sel, line) => odd2(fairOf(probs(P, mk, sel, line)));
-  const inp = (k, ph) => `<input class="in" style="padding:8px;text-align:center" inputmode="decimal" id="bo_${k}" placeholder="${String(ph).replace('.', ',')}" value="${b[k] != null ? String(b[k]).replace('.', ',') : ''}" ${done ? 'disabled' : ''}>`;
+  const inp = (k, ph, isLine) => `<div style="flex:1"><input class="in" style="padding:8px;text-align:center" inputmode="decimal" id="bo_${k}" placeholder="${isLine ? String(ph).replace('.', ',') : ''}" value="${b[k] != null ? String(b[k]).replace('.', ',') : ''}" ${done ? 'disabled' : ''}><span class="hint">${isLine ? 'linha' : 'justa ' + ph}</span></div>`;
   const hl0 = b.hl != null ? b.hl : (g.o && g.o.hl != null ? g.o.hl : -Math.round(P.m * 2) / 2 - 0.5), tl0 = b.tl != null ? b.tl : (g.o && g.o.tl != null ? g.o.tl : Math.round(P.t) + 0.5);
   let h = catH('coins', 'Odds da Betano (mete-as tu)', 'var(--c-orange)', done ? 'jogo começado' : '') +
-    `<div class="small muted" style="margin-bottom:6px">Escreve as que vês na Betano. Os números a cinzento dentro dos campos são as <b>odds justas</b> do Lu: se a Betano pagar mais, há valor.</div>
+    `<div class="small muted" style="margin-bottom:6px">Escreve as odds que vês na Betano. Por baixo de cada campo está a <b>odd justa</b> do Lu: se a Betano pagar mais, há valor.</div>
     <label class="f">Vencedor · ${esc(tNick(g.h))} / ${esc(tNick(g.a))}</label><div class="row">${inp('mh', fair('ml', 'h'))}${inp('ma', fair('ml', 'a'))}</div>
-    <label class="f">Handicap · linha de ${esc(g.h)} / odd ${esc(g.h)} / odd ${esc(g.a)}</label><div class="row">${inp('hl', hl0)}${inp('hh', fair('sp', 'h', hl0))}${inp('ha', fair('sp', 'a', -hl0))}</div>
-    <label class="f">Total de pontos · linha / mais / menos</label><div class="row">${inp('tl', tl0)}${inp('to', fair('tot', 'o', tl0))}${inp('tu', fair('tot', 'u', tl0))}</div>
+    <label class="f">Handicap · linha de ${esc(g.h)} / odd ${esc(g.h)} / odd ${esc(g.a)}</label><div class="row">${inp('hl', hl0, true)}${inp('hh', fair('sp', 'h', hl0))}${inp('ha', fair('sp', 'a', -hl0))}</div>
+    <label class="f">Total de pontos · linha / mais / menos</label><div class="row">${inp('tl', tl0, true)}${inp('to', fair('tot', 'o', tl0))}${inp('tu', fair('tot', 'u', tl0))}</div>
     ${done ? '' : `<button class="btn fill full" style="margin-top:10px" onclick="saveBO('${g.id}')">${ic('check')} Guardar odds e ver valor</button>`}`;
   if (P.cands.length) h += catH('gem', 'Onde há valor', 'var(--c-green)') + `<table class="tbl"><tr><th>Aposta</th><th>Odd</th><th>Lu</th><th>Justa</th><th>Valor</th></tr>` +
     P.cands.map((c, i) => `<tr class="tap ${P.best && c === P.best ? 'best' : ''}" onclick="${canBet(g) ? `openBet('${g.id}',${i})` : ''}"><td>${esc(selLabel(g, c.mk, c.sel, c.line))}<div class="small muted">${esc(c.src)}</div></td><td>${odd2(c.odd)}</td><td>${pct(c.p)}</td><td>${odd2(c.fair)}</td><td class="${c.ev > 0 ? 'pos' : 'neg'}">${sPct(c.ev)}</td></tr>`).join('') +
@@ -421,7 +431,7 @@ function drawBet() {
    <label class="f">Escolha</label><div class="seg">${segSel}</div>
    ${needLine ? `<label class="f">${BF.mk === 'sp' ? 'Handicap da tua escolha' : 'Linha de pontos'}</label><input class="in" id="bLine" inputmode="decimal" value="${BF.line == null ? '' : String(BF.line).replace('.', ',')}" oninput="betOpinion()">` : ''}
    <div class="row"><div style="flex:1"><label class="f">Odd (a da Betano)</label><input class="in" id="bOdd" inputmode="decimal" value="${BF.odd ? String(BF.odd).replace('.', ',') : ''}" oninput="betOpinion()"></div>
-   <div style="flex:1"><label class="f">Valor (€)</label><input class="in" id="bStake" inputmode="decimal" value="${String(BF.stake).replace('.', ',')}" oninput="betOpinion()"></div></div>
+   <div style="flex:1"><label class="f">Montante (€)</label><input class="in" id="bStake" inputmode="decimal" value="${String(BF.stake).replace('.', ',')}" oninput="betOpinion()"></div></div>
    <div class="opinion" id="bOp"></div>
    <button class="btn fill full" style="margin-top:12px" id="bGo" onclick="placeBet()">${ic('check')} Registar a minha aposta</button>
    <div class="small muted" style="margin-top:6px">Ao registares, o Lu escolhe a aposta dele neste jogo, com o mesmo valor. Ganha o duelo quem lucrar mais.</div>`, true);
@@ -472,9 +482,14 @@ function placeBet() {
     msg = stake < CFG.min ? 'Estou sem saldo… passo esta.' : 'Neste jogo não vejo nada com valor. Passo — fico com o meu dinheiro.'; mood = 'sad';
   }
   saveBets();
-  openSheet('Duelo marcado', `<div class="opinion"><div class="face">${luFace(mood)}</div><div>${msg}</div></div>
-    <div class="row" style="margin-top:14px"><button class="btn full" onclick="closeSheet();render()">Fechar</button><button class="btn fill full" onclick="closeSheet();go('duelo')">Ver duelo</button></div>`, true);
+  openSheet('Duelo marcado', duelBox(duel, mood, msg), true);
   render();
+}
+function duelBox(duel, mood, msg) {
+  const me = BETS.find(b => b.duel === duel && b.acc === 'tu'), lu = BETS.find(b => b.duel === duel && b.acc === 'lu');
+  const cell = (b, who, k) => `<div style="--k:${k}"><div class="h">${who}</div>${b && b.st !== 'pass' ? `<b>${esc(b.lb)}</b>${b.legs ? `<div class="small muted">${b.legs.map(l => esc(l.lb)).join(' + ')}</div>` : ''}<div class="small muted">@ ${odd2(b.odd)} · ${eur(b.stake)}</div>` : '<b class="muted">Passou</b>'}</div>`;
+  return `<div class="opinion"><div class="face">${luFace(mood)}</div><div>${msg}</div></div><div class="duel">${cell(me, 'Tu', 'var(--c-blue)')}${cell(lu, 'Mister Lu', '#111')}</div>
+    <div class="row" style="margin-top:14px"><button class="btn full" onclick="closeSheet();render()">Fechar</button><button class="btn fill full" onclick="closeSheet();go('duelo')">Ver duelo</button></div>`;
 }
 function voidBet(id) {
   const b = BETS.find(x => x.id === id); if (!b || b.st !== 'open') return;
@@ -532,19 +547,19 @@ function betRow(b) {
   return `<div class="bet"><div class="who" style="--k:${ACC[b.acc].c}">${ic(ACC[b.acc].ic)}</div><div class="m"><div class="t">${esc(b.lb)} <span class="muted" style="font-weight:400">@ ${odd2(b.odd)}</span></div>
    <div class="g">${b.legs ? 'Boletim' : esc(b.gl)} · ${dayLbl(b.gd)} ${hhmm(b.gd)}${b.res ? ' · ' + esc(b.res) : ''}${b.ev != null ? ` · valor Lu ${sPct(b.ev)}` : b.p != null && b.legs ? ` · Lu ${pct(b.p)}` : ''}</div>${legs}
    <div style="margin-top:4px">${stTag(b)}${b.acc === 'tu' && b.st === 'open' ? ` <button class="btn sm" style="min-height:26px;padding:2px 10px" onclick="askConfirm('Anular esta aposta? (se não chegaste a jogá-la na Betano). O duelo do Lu também é anulado.','Anular',&quot;voidBet('${b.id}')&quot;)">anular</button>` : ''}</div></div>
-   <div class="v">${eur(b.stake)}<small>${b.st === 'open' ? 'pode dar ' + eur(b.stake * b.odd) : ''}</small></div></div>`;
+   <div class="v">${eur(b.stake)}<small>${b.st === 'open' ? 'ganho possível ' + eur(b.stake * b.odd) : ''}</small></div></div>`;
 }
 function viewContas() {
-  const tile = k => { const s = accStats(k); return `<div class="acct ${ACCF === k ? 'on' : ''}" style="--k:${ACC[k].c}" onclick="ACCF=ACCF==='${k}'?'all':'${k}';render()">${ic(ACC[k].ic)}<div class="n">${ACC[k].n}</div><div class="v">${eur(s.bal)}</div><div class="d"><span class="${s.profit >= 0 ? 'pos' : 'neg'}">${sEur(s.profit)}</span></div></div>`; };
+  const tile = k => { const s = accStats(k); return `<div class="acct ${ACCF === k ? 'on' : ''}" style="--k:${ACC[k].c}" onclick="ACCF=ACCF==='${k}'?'all':'${k}';render()">${ic(ACC[k].ic)}<div class="n">${ACC[k].n}</div><div class="v">${eur(s.bal)}</div><div class="d"><span class="${s.profit > 0 ? 'pos' : s.profit < 0 ? 'neg' : ''}">${sEur(s.profit)}</span></div></div>`; };
   let h = `<div class="accs">${tile('tu')}${tile('lu')}${tile('pi')}</div>`;
   if (ACCF !== 'all') {
     const s = accStats(ACCF), n = s.w + s.l;
     h += `<div class="pn hl">${pnH(`${ic(ACC[ACCF].ic)} ${ACC[ACCF].n}`, 'toca outra vez para ver todas')}
       <div class="mosaic"><div><b>${eur(s.bal).replace(' €', '')}</b><small>saldo (€)</small></div><div><b>${n ? pct(s.w / n) : '—'}</b><small>acerto ${s.w}/${n}</small></div><div><b class="${s.roi >= 0 ? 'pos' : 'neg'}">${sPct(s.roi)}</b><small>ROI</small></div></div>
       <div class="small muted">Começou com ${eur(s.start)} · em jogo ${eur(s.open)}</div></div>`;
-  } else h += `<div class="small muted" style="margin:8px 2px">Toca numa conta para ver os números dela.</div>`;
+  }
   h += `<div class="row w" style="margin-top:8px"><button class="btn sm" onclick="exportCSV()">${ic('download')} Exportar</button><button class="btn sm" onclick="printBets()">${ic('print')} Imprimir</button><button class="btn sm" onclick="openDeposit()">${ic('coins')} Recarregar</button></div>`;
-  const L = BETS.filter(b => b.st !== 'pass' && (ACCF === 'all' || b.acc === ACCF)).sort((a, b) => b.t - a.t);
+  const accOrd = { tu: 0, lu: 1, pi: 2 }, L = BETS.filter(b => b.st !== 'pass' && (ACCF === 'all' || b.acc === ACCF)).sort((a, b) => (b.st === 'open' && a.st === 'open' ? accOrd[a.acc] - accOrd[b.acc] : 0) || b.t - a.t);
   const open = L.filter(b => b.st === 'open'), done = L.filter(b => b.st !== 'open');
   h += catH('fire', 'Em jogo', 'var(--c-orange)', `${open.length} · ${eur(open.reduce((s, b) => s + b.stake, 0))}`);
   h += open.length ? `<div class="pn open-box" style="margin-top:0">${open.map(betRow).join('')}</div>` : `<div class="pn small muted" style="margin-top:0">Nada em jogo.</div>`;
@@ -569,7 +584,7 @@ function dlCSV(rows, name) {
 }
 function exportCSV() {
   const f = v => String(v == null ? '' : v).replace('.', ',');
-  const rows = [['conta', 'registada', 'jogo', 'data_jogo', 'mercado', 'aposta', 'linha', 'odd', 'valor', 'estado', 'retorno', 'lucro', 'prob_gi', 'valor_gi', 'resultado']];
+  const rows = [['conta', 'registada', 'jogo', 'data_jogo', 'mercado', 'aposta', 'linha', 'odd', 'valor', 'estado', 'retorno', 'lucro', 'prob_lu', 'valor_lu', 'resultado']];
   betsForOut().forEach(b => rows.push([ACC[b.acc].n, new Date(b.t).toLocaleString('pt-PT'), b.legs ? 'Boletim ' + b.legs.length + ' jogos' : b.gl, new Date(b.gd).toLocaleString('pt-PT'), b.legs ? 'Múltipla' : mkName(b.mk), betDesc(b), f(b.line), f(b.odd), f(b.stake), ST_TXT[b.st] || b.st, b.st === 'open' ? '' : f(b.ret), b.st === 'open' ? '' : f(r2((b.ret || 0) - b.stake)), b.p != null ? f(b.p) : '', b.ev != null ? f(b.ev) : '', b.res || '']));
   dlCSV(rows, 'mister-lu-apostas-' + todayET() + '.csv'); toast('Ficheiro gerado (abre no Excel)');
 }
@@ -592,13 +607,13 @@ function openHelp() {
     q('Empate', 'Raríssimo (~0,2%): no vencedor, a aposta é devolvida.'));
 }
 function viewMais() {
-  const T = [['chart', 'Estatísticas', 'openStats()'], ['trophy', 'Classificação', 'openStand()'], ['chip', 'Como pensa o Lu', 'openHow()'], ['info', 'O que quer dizer', 'openHelp()'], ['gear', 'Definições', 'openCfg()'], ['save', 'Cópia de segurança', 'openBackup()'], ['pulse', 'Testar ligação', 'openNet()']];
+  const T = [['trophy', 'Classificação', 'openStand()'], ['chip', 'Como pensa o Lu', 'openHow()'], ['info', 'O que quer dizer', 'openHelp()'], ['gear', 'Definições', 'openCfg()'], ['save', 'Cópia de segurança', 'openBackup()']];
   if (!isStandalone()) T.push(['phone', 'Instalar app', 'openInstall()']);
   const ST = statsAll();
   return `<div class="pn hl" style="cursor:pointer;margin-top:14px" onclick="openStats()">${pnH(`${ic('chart')} Estatísticas do Lu`, 'tocar para abrir')}
-    ${ST.n ? `<div class="mosaic"><div><b>${pct(ST.win / ST.n)}</b><small>vencedor (${ST.n})</small></div><div><b>${ST.spN ? pct(ST.spW / ST.spN) : '—'}</b><small>handicap</small></div><div><b class="${ST.bu >= 0 ? 'pos' : 'neg'}">${ST.bn ? unitsTxt(ST.bu) : '—'}</b><small>apostas</small></div></div>` : '<div class="small muted">Ainda sem jogos previstos e acabados.</div>'}</div>
+    ${ST.n >= 10 ? `<div class="mosaic"><div><b>${pct(ST.win / ST.n)}</b><small>vencedor (${ST.n})</small></div><div><b>${ST.spN ? pct(ST.spW / ST.spN) : '—'}</b><small>handicap</small></div><div><b class="${ST.bu > 0 ? 'pos' : ST.bu < 0 ? 'neg' : ''}">${ST.bn ? unitsTxt(ST.bu) : '—'}</b><small>apostas</small></div></div>` : `<div class="small muted">${ST.n ? `Ainda poucos jogos (${ST.n}) para tirar conclusões.` : 'Ainda sem jogos previstos e acabados.'} Toca para ver o teste às cegas.</div>`}</div>
    <div class="tiles">${T.map(([i, l, f]) => `<div class="tile" onclick="${f}">${ic(i)}<b>${l}</b></div>`).join('')}</div>
-   <div class="pn small muted" style="text-align:center">Mister Lu v${APP_VER} · dados: nflverse até ${SEED.cut.split('-').reverse().join('/')} + ESPN · simulação, sem dinheiro real<br>© 2026 Júlio Melo</div>`;
+   <div class="pn small muted" style="text-align:center">Mister Lu v${APP_VER} · dados: nflverse até ${SEED.cut.split('-').reverse().join('/')} + ESPN<br>Simulação: sem dinheiro real e sem ligação à Betano. +18 · Joga com responsabilidade.<br>© 2026 Júlio Melo</div>`;
 }
 function statsAll() {
   const R = { n: 0, win: 0, spN: 0, spW: 0, toN: 0, toW: 0, bn: 0, bw: 0, bu: 0, mk: {}, conf: {}, rows: [] };
@@ -649,15 +664,14 @@ function exportPreds() {
 }
 let CONFV = 'E';
 function openStand() {
-  const M = getModel(), set = Object.keys(TEAMS).filter(t => (CONFV === 'E') === AFC.includes(t));
-  const ts = set.map(t => ({ t, r: M.rec[t] || { w: 0, l: 0, t: 0, pf: 0, pa: 0, last: [] }, o: teamRt(t).ovr }))
-    .sort((a, b) => ((b.r.w + b.r.t / 2) / Math.max(1, b.r.w + b.r.l + b.r.t)) - ((a.r.w + a.r.t / 2) / Math.max(1, a.r.w + a.r.l + a.r.t)) || (b.r.pf - b.r.pa) - (a.r.pf - a.r.pa));
+  const M = getModel(), conf = CONFV === 'E' ? 'AFC' : 'NFC';
+  const divs = ['Este', 'Norte', 'Sul', 'Oeste'].map(d => conf + ' ' + d);
+  const row = t => { const r = M.rec[t] || { w: 0, l: 0, t: 0, pf: 0, pa: 0 }; return { t, r, o: teamRt(t).ovr, pc: (r.w + r.t / 2) / Math.max(1, r.w + r.l + r.t) }; };
+  const tbl = d => { const ts = Object.keys(TEAMS).filter(t => DIV[t] === d).map(row).sort((a, b) => b.pc - a.pc || (b.r.pf - b.r.pa) - (a.r.pf - a.r.pa));
+    return `<div class="cat">${ic('trophy')}${esc(d)}</div><table class="tbl"><tr><th style="text-align:left">Equipa</th><th>V-D</th><th>Pontos</th><th>OVR</th></tr>${ts.map(x => `<tr><td style="text-align:left"><b>${esc(tNick(x.t))}</b></td><td>${x.r.w}-${x.r.l}${x.r.t ? '-' + x.r.t : ''}</td><td>${x.r.pf}-${x.r.pa}</td><td>${x.o}</td></tr>`).join('')}</table>`; };
   openSheet('Classificação', `<div class="tabs" style="margin-top:4px"><button class="${CONFV === 'E' ? 'on' : ''}" onclick="CONFV='E';openStand()">AFC</button><button class="${CONFV === 'W' ? 'on' : ''}" onclick="CONFV='W';openStand()">NFC</button></div>
-   <table class="tbl" style="margin-top:8px"><tr><th>#</th><th>Equipa</th><th>OVR</th><th>V-D</th><th>Pontos</th></tr>
-   ${ts.map((x, i) => `<tr><td>${i + 1}</td><td><b>${esc(tNick(x.t))}</b></td><td>${x.o}</td><td>${x.r.w}-${x.r.l}${x.r.t ? '-' + x.r.t : ''}</td><td>${x.r.pf}-${x.r.pa}</td></tr>`).join('')}
-   </table><div class="small muted" style="margin-top:6px">Feita pelo Lu com os resultados guardados. OVR = nota geral (0–99).</div>`);
+   ${divs.map(tbl).join('')}<div class="small muted" style="margin-top:6px">Feita pelo Lu com os resultados guardados. OVR = nota geral (0–99).</div>`);
 }
-
 function openHow() {
   const M = getModel(), P = SEED.par;
   openSheet('Como pensa o Lu', `<div class="pn" style="line-height:1.55">
@@ -675,9 +689,10 @@ function openCfg() {
    ${inp('c_min', 'Aposta mínima da tua casa (€)', CFG.min)}
    ${inp('c_pis', 'Valor de cada aposta do piloto (€)', CFG.piStake)}
    ${inp('c_ev', 'Valor mínimo para o Boletim (%)', Math.round(CFG.evMin * 100), 'Mais alto = menos apostas, mais exigentes.')}
-   ${inp('c_w', 'Peso das odds da ESPN (%)', Math.round(CFG.mktW * 100), 'No teste às cegas a casa acertou um pouco melhor: 85% é um bom ponto.')}
+   ${inp('c_w', 'Peso inicial da linha da casa (%)', Math.round(CFG.mktW * 100), 'Ponto de partida: o Lu ajusta-o sozinho com os resultados. No teste às cegas, 90% foi o melhor.')}
    <label class="f">Piloto automático</label><div class="seg"><button id="c_pon" class="${CFG.piOn ? 'on' : ''}" onclick="this.classList.add('on');$('#c_poff').classList.remove('on')">Ligado</button><button id="c_poff" class="${!CFG.piOn ? 'on' : ''}" onclick="this.classList.add('on');$('#c_pon').classList.remove('on')">Desligado</button></div>
    <button class="btn fill full" style="margin-top:14px" onclick="saveCfg()">Guardar</button>
+   <button class="btn go full" style="margin-top:10px" onclick="openNet()">${ic('pulse')} Testar ligação à ESPN</button>
    <button class="btn red full" style="margin-top:10px" onclick="askConfirm('Apagar TODAS as apostas e recomeçar as três contas? Os jogos guardados ficam.','Apagar apostas','wipeBets()')">Recomeçar as contas</button>`);
 }
 function saveCfg() {
@@ -753,7 +768,7 @@ document.querySelectorAll('[data-ic]').forEach(el => { el.outerHTML = ic(el.data
 window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (VIEWS.includes(v) && v !== VIEW) { VIEW = v; render(); } });
 render();
 function loadSeed() {
-  fetch('seed.json').then(r => r.json()).then(j => { SEED = j; MODEL = null; settleAll(); render(); })
+  fetch('seed.json').then(r => r.json()).then(j => { SEED = j; mergeSeed(); MODEL = null; settleAll(); render(); })
     .catch(() => { $('#view').innerHTML = `<div class="pn empty" style="margin-top:40px"><div class="face">${luFace('sad')}</div>Não consegui abrir o arquivo do Lu.<br><button class="btn fill" style="margin-top:12px" onclick="loadSeed()">${ic('refresh')} Tentar outra vez</button></div>`; });
 }
 loadSeed();
