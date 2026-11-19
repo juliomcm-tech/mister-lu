@@ -789,7 +789,7 @@ document.querySelectorAll('[data-ic]').forEach(el => { el.outerHTML = ic(el.data
 window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (VIEWS.includes(v) && v !== VIEW) { VIEW = v; render(); } });
 render();
 function loadSeed() {
-  fetch('seed.json').then(r => r.json()).then(j => { SEED = j; mergeSeed(); MODEL = null; settleAll(); render(); })
+  fetch('seed.json').then(r => r.json()).then(j => { SEED = j; mergeSeed(); MODEL = null; settleAll(); render(); setTimeout(bossFeed, 50); })
     .catch(() => { $('#view').innerHTML = `<div class="pn empty" style="margin-top:40px"><div class="face">${luFace('sad')}</div>Não consegui abrir o arquivo do Lu.<br><button class="btn fill" style="margin-top:12px" onclick="loadSeed()">${ic('refresh')} Tentar outra vez</button></div>`; });
 }
 loadSeed();
