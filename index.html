@@ -291,7 +291,7 @@ body.busy .top:after{content:"";position:absolute;left:0;right:0;bottom:0;height
    Dados: arquivo do Lu (seed.json, nflverse até à véspera) + ESPN.
    Só vai à internet quando carregas em ↻. Tudo fica no telemóvel («lu_…»).
    ===================================================================== */
-const APP_VER = '1.2.3';
+const APP_VER = '1.2.4';
 
 /* ---------- utilitários ---------- */
 const $ = s => document.querySelector(s);
@@ -460,7 +460,7 @@ async function refresh() {
     for (let i = 0; d <= end && i < 420; i++, d = ymdAdd(d, 1)) {
       if (DB.days[d] && d < ymdAdd(T, -2)) continue;
       setUpd(`⏳ A buscar ${d.slice(6)}/${d.slice(4, 6)} à ESPN…`);
-      try { const j = await getJSON(`${ESPN}/scoreboard?dates=${d}`); if (!j || !Array.isArray(j.events)) throw new Error('resposta sem jogos'); j.events.forEach(e => { if (ingest(e)) got++; }); if (d < ymdAdd(T, -2)) DB.days[d] = 1; }
+      try { const j = await getJSON(`${ESPN}/scoreboard?dates=${d}`); if (!j || !Array.isArray(j.events)) throw new Error('resposta sem jogos'); j.events.forEach(e => { if (ingest(e)) got++; }); if (d < ymdAdd(T, -2) && !stuckBetween(d, d)) DB.days[d] = 1; }
       catch (e) { fails++; if (i >= 2 && !got && fails >= i + 1) break; }
       await new Promise(r => setTimeout(r, 60));
     }
@@ -681,6 +681,21 @@ function outcome(b, g) {
   if (b.mk === 'tot') return wl(b.sel === 'o' ? g.hs + g.as - b.line : b.line - (g.hs + g.as));
   return null;
 }
+
+/* ===== robustez: nenhuma aposta fica presa para sempre =====
+   jogo acabado mas impossível de conferir (falta um dado da ESPN, mercado sem regra) → anula ao fim de 5 dias;
+   jogo que nunca chegou a «acabado» → anula ao fim de 10 dias (a aposta volta para a banca) */
+outcome = (function (prev) { return function (b, g) {
+  const r = prev(b, g); if (r != null || !g || !g.d) return r;
+  const age = Date.now() - Date.parse(g.d);
+  if (g.s === 'post' && age > 5 * 864e5) return 'void';
+  if (g.s !== 'post' && age > 10 * 864e5) return 'void';
+  return r;
+}; })(outcome);
+/* um dia (ou bloco de dias) só fica «feito» quando todos os jogos dele já acabaram — senão volta a ser pedido à ESPN
+   (até 30 dias para trás), para um resultado que veio atrasado não deixar jogos e apostas pendurados */
+const stuckBetween = (a, b) => { const t0 = Date.parse(a.slice(0, 4) + '-' + a.slice(4, 6) + '-' + a.slice(6, 8) + 'T00:00:00Z') - 12 * 3600e3, t1 = Date.parse(b.slice(0, 4) + '-' + b.slice(4, 6) + '-' + b.slice(6, 8) + 'T23:59:59Z') + 12 * 3600e3, now = Date.now();
+  return Object.values(DB.g).some(g => { const t = Date.parse(g.d); return t >= t0 && t <= t1 && t < now - 6 * 3600e3 && t > now - 30 * 864e5 && g.s !== 'post' && g.s !== 'off'; }); };
 function newMulti(acc, legs, stake, extra) {
   const odd = r2(legs.reduce((a, l) => a * l.odd, 1));
   const b = Object.assign({ id: acc + 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), acc, mk: 'multi', legs: legs.map(l => Object.assign({}, l)), g: legs[0].g, gl: legs.length + ' jogos', gd: legs.reduce((m, l) => l.gd > m ? l.gd : m, legs[0].gd), odd, stake: r2(stake), t: Date.now(), st: 'open', ret: 0, lb: 'Múltipla · ' + legs.length + ' seleções' }, extra || {});
